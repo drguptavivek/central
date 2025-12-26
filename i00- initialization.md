@@ -118,6 +118,12 @@ docker compose exec service odk-cmd --email name@example.com  user-promote
 name@example.com
 password2026
 
+## LOGS
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central logs service -f --tail=50
+```
+
 ## TESTS
 
 ```bash
