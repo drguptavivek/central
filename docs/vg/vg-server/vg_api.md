@@ -21,6 +21,11 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 
 - Auth: Admin/manager on the project.
 - Request (JSON):
+  - `username` (mandatory, string): Unique login identifier. Normalized to lowercase.
+  - `password` (mandatory, string): Initial password. Must meet complexity policy.
+  - `fullName` (mandatory, string): Display name for the user.
+  - `phone` (optional, string): Contact number (max 25 chars).
+  - `active` (optional, boolean): Initial account status. Defaults to `true`.
   ```json
   { "username": "collect-user", "password": "GoodPass!1X", "fullName": "Collect User", "phone": "+15551234567", "active": true }
   ```
@@ -34,6 +39,10 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 
 - Auth: Anonymous.
 - Request (JSON):
+  - `username` (mandatory, string): The app user's username.
+  - `password` (mandatory, string): The app user's password.
+  - `deviceId` (optional, string): Unique identifier for the device.
+  - `comments` (optional, string): Metadata about the session/device (e.g., "tablet-1").
   ```json
   { "username": "collect-user", "password": "GoodPass!1X", "deviceId": "device-123", "comments": "tablet-1" }
   ```
@@ -68,11 +77,13 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 **PATCH /projects/:projectId/app-users/:id**
 
 - Auth: Admin/manager on the project.
-- Request (JSON): both fields optional; omit to leave unchanged.
+- Request (JSON):
+  - `fullName` (optional, string): New display name.
+  - `phone` (optional, string): New contact number (max 25 chars).
   ```json
   { "fullName": "New Name", "phone": "+15557654321" }
   ```
-  `fullName` must be a non-empty string; `phone` is trimmed, optional, and capped at 25 characters. `username` is immutable once created.
+  `fullName` must be a non-empty string; `phone` is trimmed and capped at 25 characters. `username` is immutable once created.
 - Response — HTTP 200, application/json (no token is ever returned):
   ```json
   { "id": 12, "projectId": 1, "displayName": "New Name", "phone": "+15557654321", "active": true, "username": "collect-user", "token": null }
@@ -83,6 +94,8 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 
 - Auth: App user bearer token.
 - Request (JSON):
+  - `oldPassword` (mandatory, string): Current password for verification.
+  - `newPassword` (mandatory, string): New password. Must meet complexity policy.
   ```json
   { "oldPassword": "GoodPass!1X", "newPassword": "NewPass!2Y" }
   ```
@@ -97,6 +110,7 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 
 - Auth: Admin/manager on the project.
 - Request (JSON):
+  - `newPassword` (mandatory, string): New password for the user. Must meet complexity policy.
   ```json
   { "newPassword": "ResetPass!3Z" }
   ```
@@ -111,7 +125,8 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 
 - Auth: App user bearer token (self). `id` is the app-user ID returned by `/login`.
 - Behavior: revokes only the current token.
-- Request (JSON): optional `deviceId` for audit/logging.
+- Request (JSON): 
+  - `deviceId` (optional, string): Used for audit/logging.
 - Response — HTTP 200, application/json:
   ```json
   { "success": true }
@@ -130,7 +145,9 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 **GET /projects/:projectId/app-users/:id/sessions**
 
 - Auth: Admin/manager on the project (web UI).
-- Query params (optional): `limit`, `offset` for pagination.
+- Query params:
+  - `limit` (optional, integer): Pagination limit.
+  - `offset` (optional, integer): Pagination offset.
 - Response header: `X-Total-Count` for total sessions matching the filter.
 - Returns session history for the app user (including expired sessions).
 - Response — HTTP 200, application/json:
@@ -143,8 +160,12 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 **GET /projects/:projectId/app-users/sessions**
 
 - Auth: Admin/manager on the project (web UI).
-- Query params (optional): `appUserId`, `dateFrom`, `dateTo`, `limit`, `offset`.
-- `dateFrom`/`dateTo` filter by session creation time (`createdAt`).
+- Query params:
+  - `appUserId` (optional, integer): Filter by a specific app user.
+  - `dateFrom` (optional, ISO datetime): Filter by creation time start.
+  - `dateTo` (optional, ISO datetime): Filter by creation time end.
+  - `limit` (optional, integer): Pagination limit.
+  - `offset` (optional, integer): Pagination offset.
 - Response header: `X-Total-Count` for total sessions matching the filter.
 - Returns session history (including expired sessions).
 - Response — HTTP 200, application/json:
@@ -169,7 +190,18 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 **POST /projects/:projectId/app-users/telemetry**
 
 - Auth: App user bearer token (Collect).
-- Request (JSON): `deviceId`, `collectVersion`, and `deviceDateTime` are required. `deviceDateTime` must be a UTC ISO string (`Z` or `+00:00`). The `location` object is optional, but if provided, it must contain `latitude` and `longitude`.
+- Request (JSON):
+  - `deviceId` (mandatory, string): Unique identifier for the device.
+  - `collectVersion` (mandatory, string): Version string of the Collect app.
+  - `deviceDateTime` (mandatory, ISO datetime): UTC timestamp generated by the device.
+  - `location` (optional, object): Geographic coordinates.
+    - `latitude` (mandatory if location present, number): Latitude in decimal degrees.
+    - `longitude` (mandatory if location present, number): Longitude in decimal degrees.
+    - `altitude` (optional, number): Altitude in meters.
+    - `accuracy` (optional, number): Horizontal accuracy in meters.
+    - `speed` (optional, number): Speed in meters per second.
+    - `bearing` (optional, number): Bearing in degrees.
+    - `provider` (optional, string): Source of the location (e.g., "gps").
 - App users only; web users cannot submit telemetry on their behalf.
   ```json
   {
@@ -197,8 +229,14 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 **GET /system/app-users/telemetry**
 
 - Auth: Requires `config.read` permission.
-- Query params (all optional): `projectId`, `deviceId`, `appUserId`, `dateFrom`, `dateTo`, `limit`, `offset`.
-- `dateFrom`/`dateTo` filter by server receive time (`dateTime`).
+- Query params:
+  - `projectId` (optional, integer): Filter by project ID.
+  - `deviceId` (optional, string): Filter by device ID.
+  - `appUserId` (optional, integer): Filter by app user ID.
+  - `dateFrom` (optional, ISO datetime): Filter by server receive time start.
+  - `dateTo` (optional, ISO datetime): Filter by server receive time end.
+  - `limit` (optional, integer): Pagination limit.
+  - `offset` (optional, integer): Pagination offset.
 - Response header: `X-Total-Count` for total rows matching filters.
 - Response — HTTP 200, application/json:
   ```json
@@ -229,6 +267,7 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 
 - Auth: Admin/manager on the project.
 - Request (JSON):
+  - `active` (mandatory, boolean): `false` to deactivate, `true` to reactivate.
   ```json
   { "active": false }
   ```
@@ -264,7 +303,10 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 **PUT /system/settings**
 
 - Auth: Requires `config.set` permission.
-- Request (JSON): provide any or all fields.
+- Request (JSON):
+  - `vg_app_user_session_ttl_days` (optional, integer): New TTL in days.
+  - `vg_app_user_session_cap` (optional, integer): New session concurrency cap.
+  - `admin_pw` (optional, string): New admin password for Collect settings.
   ```json
   { "vg_app_user_session_ttl_days": 5, "vg_app_user_session_cap": 2, "admin_pw": "new_password" }
   ```
@@ -280,10 +322,11 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 
 - Auth: Requires `config.set` permission.
 - Request (JSON):
+  - `username` (mandatory, string): Target username to unlock.
+  - `ip` (optional, string): Specific IP to unlock. If omitted, clears all lockouts for the username.
   ```json
   { "username": "collect-user", "ip": "1.2.3.4" }
   ```
-  `ip` is optional; if omitted, clears all recent failed attempts for the username.
 - Response — HTTP 200, application/json:
   ```json
   { "success": true }
