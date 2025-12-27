@@ -67,7 +67,10 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
       "displayName": "Collect User",
       "createdAt": "2025-12-16T16:00:00.000Z",
       "updatedAt": null,
-      "token": null
+      "token": null,
+      "active": true,
+      "username": "collect-user",
+      "phone": "+15551234567"
     }
   ]
   ```
