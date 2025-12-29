@@ -205,6 +205,15 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
     - `speed` (optional, number): Speed in meters per second.
     - `bearing` (optional, number): Bearing in degrees.
     - `provider` (optional, string): Source of the location (e.g., "gps").
+  - `event` (optional, object): Single client event payload (see below).
+  - `events` (optional, array): Batch of up to 10 events; cannot be provided with `event`.
+- Event object:
+  - `id` (mandatory, string): Client-generated stable id for dedupe.
+  - `type` (mandatory, string): Event type identifier.
+  - `occurredAt` (optional, ISO datetime): UTC timestamp when the event occurred.
+  - `details` (optional, object): Arbitrary event details.
+  - Additional metadata is stored as-is.
+- Idempotency: events are upserted on `(appUserId/actorId, deviceId, event.id)` so offline retries do not create duplicates.
 - App users only; web users cannot submit telemetry on their behalf.
   ```json
   {
@@ -219,14 +228,22 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
       "speed": 0.5,
       "bearing": 42.1,
       "provider": "gps"
+    },
+    "event": {
+      "id": "evt-001",
+      "type": "form_opened",
+      "occurredAt": "2025-12-21T09:59:00.000Z",
+      "details": { "formId": "registration" }
     }
   }
   ```
 - Response — HTTP 200, application/json:
   ```json
-  { "id": 55, "dateTime": "2025-12-21T10:02:00.000Z", "serverTime": "2025-12-21T10:02:00.500Z" }
+  { "id": 55, "appUserId": 12, "deviceId": "device-123", "dateTime": "2025-12-21T10:02:00.000Z", "serverTime": "2025-12-21T10:02:00.500Z", "status": "ok", "clientEventId": "evt-001" }
   ```
   `deviceDateTime` is device-generated; `dateTime` is the server receive time recorded with the row; `serverTime` is the server clock at the time the response is generated.
+  `status` is `ok` or `invalidated` if the bearer token no longer resolves to an active session by the time the record is processed. `clientEventId` is returned only when an event was provided.
+  For `events` batches, the response is an array of result rows (one per event), each with `id`, `appUserId`, `deviceId`, `clientEventId`, `dateTime`, `serverTime`, and `status`.
 
 ### List telemetry (system admin)
 **GET /system/app-users/telemetry**
@@ -241,7 +258,7 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
   - `limit` (optional, integer): Pagination limit.
   - `offset` (optional, integer): Pagination offset.
 - Response header: `X-Total-Count` for total rows matching filters.
-- Response — HTTP 200, application/json:
+  - Response — HTTP 200, application/json:
   ```json
   [
     {
@@ -252,6 +269,8 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
       "collectVersion": "Collect/2025.1",
       "deviceDateTime": "2025-12-21T10:00:00.000Z",
       "dateTime": "2025-12-21T10:02:00.000Z",
+      "clientEventId": "evt-001",
+      "event": { "id": "evt-001", "type": "form_opened", "occurredAt": "2025-12-21T09:59:00.000Z", "details": { "formId": "registration" } },
       "location": {
         "latitude": 37.7749,
         "longitude": -122.4194,
