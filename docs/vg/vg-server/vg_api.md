@@ -215,6 +215,8 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
   - Additional metadata is stored as-is.
 - Idempotency: events are upserted on `(appUserId/actorId, deviceId, event.id)` so offline retries do not create duplicates.
 - App users only; web users cannot submit telemetry on their behalf.
+- `appUserId` (optional, integer) must match the authenticated app user if provided.
+- If the bearer token belongs to a different project than `:projectId`, the endpoint returns 404 (project scoped not found).
   ```json
   {
     "deviceId": "device-123",
