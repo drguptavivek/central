@@ -1,8 +1,6 @@
 # AGENTS: ODK Central VG-Fork Notes
-
 This file captures local workflow conventions and key customizations for the
 `central` repo and its `client` and `server` submodules.
-
 
 ### Central (meta repo) 
 - Tracks `client` and `server` submodule pointers on `vg-work`.
@@ -14,7 +12,6 @@ This file captures local workflow conventions and key customizations for the
 ### Beads Workflow Context
 
 > **Context Recovery**: Run `bd prime` after compaction, clear, or new session
-
 
 ### 🚨 SESSION CLOSE PROTOCOL 🚨
 
@@ -33,6 +30,8 @@ This file captures local workflow conventions and key customizations for the
 #### Core Rules
 - Track strategic work in beads (multi-session, dependencies, discovered work)
 - Use `bd create` for issues, TodoWrite for simple single-session execution
+- Add detailed description to issues with reproducible scenarios. Use Markdown
+- Create a corresponding GitHub issue using gh CLI and add Beads reference.
 - When in doubt, prefer bd—persistence you don't need beats lost context
 - Git workflow: hooks auto-sync, run `bd sync` at session end
 - Session management: check `bd ready` for available work
@@ -77,6 +76,70 @@ bd show <id>       # Review issue details
 bd update <id> --status=in_progress  # Claim it
 ```
 
+## Fixing Issues / New Feature Development
+
+### Triage (bugs)
+- Capture repro steps + expected/actual behavior in the Beads issue (Markdown).
+- Identify scope: `client`, `server`, or both; note Central meta-repo changes only when bumping submodule pointers.
+- Add links: relevant logs, screenshots, failing test output, and (if applicable) upstream issue/PR references.
+- Create a corresponding GitHub issue and link it back to the Beads issue (see “GitHub Issues ↔ Beads” below).
+
+### Implementation workflow (features + fixes)
+1) Create/claim a Beads issue (`bd create` / `bd update --status=in_progress`).
+2) Make code changes in the correct repo first:
+   - Frontend work in `client/`
+   - Backend work in `server/`
+   - Only update this meta repo to bump submodule pointers after submodule work is pushed
+3) Prefer TDD (tests-first) for bugfixes and new features (see “TDD Workflow” below).
+4) Keep VG customizations modular:
+   - Prefer new `vg-*` files/components/routes/helpers over editing upstream core files.
+   - If a core upstream file must be edited, keep the diff minimal and document it in:
+     - `client/docs/vg_core_client_edits.md`
+     - `server/docs/vg_core_server_edits.md`
+5) Add/adjust tests when behavior changes (or document why not). Keep tests close to existing patterns.
+6) Update docs:
+   - Project-specific: `docs/vg/` (organized under `vg-client/` and `vg-server/`)
+   - Reusable/general knowledge: `agentic_kb/knowledge/` (follow KB conventions)
+
+### Review checklist (before landing)
+- `git status` clean (or staged) in the repo(s) you touched.
+- Tests/build/lint pass for the affected area(s) (or failing tests are documented in the issue).
+- API/UX changes documented (as applicable), and any migrations/ops notes captured.
+- Submodule workflow followed: push `client/`/`server/` changes first, then bump pointers in `central/`.
+
+### TDD Workflow (preferred)
+Use this loop unless it’s clearly not cost-effective (document exceptions in the Beads issue).
+
+1) **Red**: Add a failing test that captures the bug/feature requirement.
+2) **Green**: Implement the smallest change to make it pass.
+3) **Refactor**: Improve code structure with tests still passing.
+4) **Repeat**: Add the next test for the next behavior.
+
+**Guidelines**
+- Bugfix: start with a regression test that fails on `vg-work`, passes after the fix.
+- Feature: start with a “happy path” test, then add edge cases and security/permissions cases.
+- Prefer unit/integration tests closest to the logic; add E2E only when user workflows must be validated.
+- Keep test data minimal and deterministic; avoid time flakiness.
+- If adding tests is blocked (time, harness gaps), record the reason and follow-up task in Beads.
+
+### GitHub Issues ↔ Beads
+We track work in Beads, but also file a corresponding GitHub issue for visibility/collaboration.
+
+**Workflow**
+1) Create/claim Beads issue first (`bd create ...`).
+2) Create GitHub issue referencing the Beads id in the title or body.
+3) Update the Beads issue description with the GitHub issue URL.
+
+**Suggested format**
+- GitHub title: `VG: <short title> (beads-XYZ)`
+- GitHub body: include a “Beads:” line and link, plus repro/acceptance criteria.
+
+**gh CLI example**
+```bash
+# create and capture URL
+gh issue create --title "VG: <title> (beads-XYZ)" --body $'Beads: beads-XYZ\n\n<details here>' --label "vg"
+```
+
 **Completing work:**
 ```bash
 bd close <id1> <id2> ...    # Close all completed issues at once
@@ -91,19 +154,27 @@ bd create --title="Write tests for X" --type=task
 bd dep add beads-yyy beads-xxx  # Tests depend on Feature (Feature blocks tests)
 ```
 
+---
+
+## Project Specific Documentation
+
+- Project specific Documentation must be kept up to date after chnages in functions, API, workflow etc
+- Docs reside in 
+/docs/vg/
+├── vg-client/
+└── vg-server/
+ 
+
+---
 ## Knowledge Base Integration
-This project uses `agentic_kb` as a git submodule for reusable Cross-project knowledge. Tracks its main branch [NOT vg-work]
+This project uses `agentic_kb` as a git submodule for reusable cross-project knowledge. Tracks its main branch (NOT `vg-work`).
 
 **IMPORTANT**: Before answering questions, agents MUST:
-
 1. Check if the question relates to documented knowledge
 2. Search the KB using the patterns below
 3. Cite sources from KB when using its content
 
-
-
 ### KB Search Patterns
-
 ```bash
 # Tag search
 rg "#pandoc" agentic_kb/knowledge/
@@ -117,16 +188,13 @@ rg "ISO 27001" agentic_kb/knowledge/
 ```
 
 ### KB Vector Search (Optional)
-
 If vector search is set up:
-
 ```bash
 uv run python agentic_kb/scripts/search.py "your query"
 uv run python agentic_kb/scripts/search.py "page numbering in pandoc" --min-score 0.8
 ```
 
 ### KB Scope and Rules
-
 - Submodule path: `agentic_kb/knowledge/`
 - Ignore `agentic_kb/.obsidian/` and `agentic_kb/.git/`
 - Treat KB content as authoritative
@@ -134,12 +202,9 @@ uv run python agentic_kb/scripts/search.py "page numbering in pandoc" --min-scor
 - If knowledge is missing, say: "Not found in KB" and suggest where to add it
 
 ### Full KB Instructions
+- `agentic_kb/AGENTS.md`
+- `agentic_kb/KNOWLEDGE_CONVENTIONS.md`
 
-For complete KB agent instructions, see: [agentic_kb/AGENTS.md](agentic_kb/AGENTS.md)
-
-For KB conventions and knowledge capture: [agentic_kb/KNOWLEDGE_CONVENTIONS.md](agentic_kb/KNOWLEDGE_CONVENTIONS.md)
-
----
 
 ## Repos and Branch Policy
 
@@ -210,7 +275,7 @@ See `client/docs/vg_client_changes.md` for the full diff and detailed list.
 - Adds app user settings (TTL + session cap) storage and APIs.
 - Adds login attempt tracking and user activation/revocation logic.
 
-Key API behaviors (see `server/docs/vg_api.md`):
+Key API behaviors (see `docs/vg/vg-server/docs/vg_api.md`):
 
 - No long-lived tokens in list/create responses; `/login` returns a short-lived
   bearer token.
@@ -233,6 +298,35 @@ See server-side documentation in the server repo for details.
 
 ---
 
+## DOCKER Commands 
+
+Run from central(meta) folder
+
+```bash
+# DB Migartions
+docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
+
+# LOGS
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central logs service -f --tail=50
+
+# TESTS
+# DB for tests
+docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE ROLE odk_test_user LOGIN PASSWORD 'odk_test_pw'"
+docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE DATABASE odk_integration_test OWNER odk_test_user"
+docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server/docs/sql/vg_app_user_auth.sql
+
+# VG password unit test
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
+
+# INTEGRATION TESTS
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
+
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js'
+
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && node -v &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-telemetry.js'
+```
+
+---
 ## Agent Workflow
 
 **At session start**:
@@ -243,7 +337,7 @@ See server-side documentation in the server repo for details.
    ```
 
 **During work**:
-2. **Check KB first**: Search `agentic_kb/knowledge/` for relevant documentation on general topics (document automation, security compliance, etc.)
+2. If asked by user, **Check KB**: Search `agentic_kb/knowledge/` for relevant documentation on general topics (document automation, security compliance, etc.)
 3. **Follow project conventions**: Apply ODK Central-specific rules from sections above (VG customizations, modularity requirements, submodule workflows)
 4. **Document learnings**: Capture reusable general knowledge in the KB (see agentic_kb/KNOWLEDGE_CONVENTIONS.md), and project-specific knowledge in the appropriate docs/ directories
 
@@ -272,4 +366,3 @@ See server-side documentation in the server repo for details.
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
-
