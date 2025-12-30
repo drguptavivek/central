@@ -28,6 +28,11 @@
 - App users only; web users cannot submit telemetry on their behalf.
 - `appUserId` (optional, integer) must match the authenticated app user if provided.
 - If the bearer token belongs to a different project than `:projectId`, the endpoint returns 404 (project scoped not found).
+- If the token is revoked/expired and there is no matching VG session (or the VG session is beyond the 2-day grace window), the request returns 401 authentication failed (no telemetry recorded).
+- If the token is revoked/expired in core but the VG session still exists (within the 2-day grace window), telemetry is recorded and the response `status` is `"invalidated"`.
+- Response (single event):
+  - `status`: `"ok"` or `"invalidated"`.
+  - `serverTime`: ISO datetime for when the server processed the request.
   ```json
   {
     "deviceId": "device-123",
