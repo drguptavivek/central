@@ -42,6 +42,7 @@
 - Validation:
   - Missing or whitespace-only `oldPassword`/`newPassword` → `400.3` `missingParameters`.
   - Non-string `oldPassword`/`newPassword` → `400.11` `invalidDataTypeOfParameter`.
+  - `newPassword` longer than 72 chars → `400.38` `passwordTooLong`.
 
 ## Reset password (admin)
 **POST /projects/:projectId/app-users/:id/password/reset**
@@ -60,6 +61,7 @@
 - Validation:
   - Missing or whitespace-only `newPassword` → `400.3` `missingParameters`.
   - Non-string `newPassword` → `400.11` `invalidDataTypeOfParameter`.
+  - `newPassword` longer than 72 chars → `400.38` `passwordTooLong`.
 
 ## Revoke own sessions
 **POST /projects/:projectId/app-users/:id/revoke**

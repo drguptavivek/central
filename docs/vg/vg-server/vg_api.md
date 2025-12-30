@@ -11,6 +11,7 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 
 ## Password policy
 - Minimum 10 characters
+- Maximum 72 characters
 - At least one uppercase, one lowercase, one digit, one special (`~!@#$%^&*()_+-=,.`)
 - Rejects anything that does not meet all criteria
 
