@@ -68,6 +68,7 @@
 
 - Auth: App user bearer token (self). `id` is the app-user ID returned by `/login`.
 - Behavior: revokes only the current token.
+- If the token belongs to a different project than `:projectId`, returns 404 (project-scoped not found).
 - Request (JSON):
   - `deviceId` (optional, string): Used for audit/logging.
 - Validation:
