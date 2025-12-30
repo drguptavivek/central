@@ -68,6 +68,8 @@
 - Behavior: revokes only the current token.
 - Request (JSON):
   - `deviceId` (optional, string): Used for audit/logging.
+- Validation:
+  - Non-string `deviceId` → `400.11` `invalidDataTypeOfParameter`.
 - Response — HTTP 200, application/json:
   ```json
   { "success": true }
