@@ -41,6 +41,7 @@
 - Auth: Admin/manager on the project (web UI).
 - Behavior: terminates the session and marks it inactive in history.
 - Note: if the app user/field key row was deleted, revocation still succeeds; project scoping is only enforced when a projectId is available.
+- If the session belongs to a different project than `:projectId`, returns 404 (project-scoped not found).
 - Response — HTTP 200, application/json:
   ```json
   { "success": true }
