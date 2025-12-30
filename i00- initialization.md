@@ -128,7 +128,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 
 ## DB Migartions
 
-```
+```bash
 docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 ```
 
