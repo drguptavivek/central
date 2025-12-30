@@ -82,6 +82,7 @@
 **POST /projects/:projectId/app-users/:id/revoke-admin**
 
 - Auth: Admin/manager on the project (web UI).
+- If `:id` is not in the project, returns 404 (project-scoped not found).
 - Response — HTTP 200, application/json:
   ```json
   { "success": true }
