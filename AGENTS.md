@@ -6,7 +6,7 @@ This file captures local workflow conventions and key customizations for the
 - Tracks `client` and `server` submodule pointers on `vg-work`.
 
 ## Create Central VG Customization Specific Docs 
-- docs in docs/vg in main repo. Organzied by  vg-client and vg-server
+- In docs/vg/ in the meta repo. Organized by  vg-client and vg-server
 
 ## Use 'bd' for task tracking
 ### Beads Workflow Context
@@ -236,8 +236,8 @@ uv run python agentic_kb/scripts/search.py "page numbering in pandoc" --min-scor
   upstream files unless strictly necessary.
 - When modifying upstream files, keep changes small and well-scoped.
 - Any core file edits must be documented in:
-  - `client/docs/vg_core_client_edits.md`
-  - `server/docs/vg_core_server_edits.md`
+  - `docs/vg/vg-client/vg_core_client_edits.md`
+  - `docs/vg/vg-server/vg_core_server_edits.md`
 
 ### Client (central-frontend fork)
 
@@ -256,7 +256,7 @@ uv run python agentic_kb/scripts/search.py "page numbering in pandoc" --min-scor
   - Default domain `central.local`.
   - Simplified response checks.
 
-See `client/docs/vg_client_changes.md` for the full diff and detailed list.
+See `docs/vg/vg-client/vg_client_changes.md` for the full diff and detailed list.
 
 ### Namespacing / Prefixing Conventions
 
@@ -275,7 +275,7 @@ See `client/docs/vg_client_changes.md` for the full diff and detailed list.
 - Adds app user settings (TTL + session cap) storage and APIs.
 - Adds login attempt tracking and user activation/revocation logic.
 
-Key API behaviors (see `docs/vg/vg-server/docs/vg_api.md`):
+Key API behaviors (see `docs/vg/vg-server/vg_api.md`):
 
 - No long-lived tokens in list/create responses; `/login` returns a short-lived
   bearer token.
