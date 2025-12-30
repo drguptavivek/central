@@ -57,6 +57,9 @@
   { "success": true }
   ```
   All sessions for that actor are terminated.
+- Validation:
+  - Missing or whitespace-only `newPassword` → `400.3` `missingParameters`.
+  - Non-string `newPassword` → `400.11` `invalidDataTypeOfParameter`.
 
 ## Revoke own sessions
 **POST /projects/:projectId/app-users/:id/revoke**
