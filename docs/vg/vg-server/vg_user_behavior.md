@@ -39,6 +39,7 @@ This document describes all user-visible behavior changes introduced by VG app-u
 - 5 failed attempts in 5 minutes per username+IP triggers a 10-minute lock.
 - Attempts are tracked server-side for lockout enforcement.
 - Lockouts are recorded in `vg_app_user_login_attempts`.
+- Project mismatch logins count as failed attempts for lockout tracking.
 - To clear a lockout, delete recent failed attempts for the username+IP or backdate them beyond the lock window.
 - Admins can clear lockouts via `POST /system/app-users/lockouts/clear`.
 
