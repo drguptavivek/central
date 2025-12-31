@@ -101,11 +101,11 @@ Settings are built from multiple sources:
 - `delete_send`: Always `false`
 - `default_completed`: Always `false`
 - `analytics`: Always `true`
-- `admin_pw`: Fetched from system settings (default: `'vg_custom'`)
+- `admin_pw`: Fetched from project app-user settings (default: `'vg_custom'`)
 
 **Admin Section**:
 - `change_server`: Always `false` (prevents server URL modification)
-- `admin_pw`: System setting for ODK Collect settings lock
+- `admin_pw`: Project app-user setting for ODK Collect settings lock
 
 ### 2. Encoding Process
 
@@ -132,7 +132,7 @@ QR Code Image (L error correction)
 Location: `client/src/components/field-key/vg-qr-panel.vue`
 
 **Process**:
-1. Fetch system settings (includes admin_pw)
+1. Fetch project app-user settings (includes admin_pw)
 2. Build settings object based on mode (legacy/managed)
 3. Pass to `CollectQr` component
 4. Component handles serialization, compression, encoding
@@ -159,9 +159,9 @@ settings() {
     settings.general.automatic_update = true;
     // ... etc ...
 
-    // Include admin_pw from system settings
-    const adminPw = this.systemSettings.dataExists
-      ? this.systemSettings.data.admin_pw || 'vg_custom'
+    // Include admin_pw from project settings
+    const adminPw = this.projectAppUserSettings.dataExists
+      ? this.projectAppUserSettings.data.admin_pw || 'vg_custom'
       : 'vg_custom';
     settings.admin = {
       change_server: false,
@@ -186,7 +186,7 @@ settings() {
 - User clicks "Show QR"
 - Opens vg-field-key-qr-panel modal
 - Fetches app user details
-- Generates managed QR with current system settings
+- Generates managed QR with current project app-user settings
 - Displays with toggle option to switch to legacy
 
 ### 2. Password Reset Flow
@@ -432,4 +432,3 @@ vg-qr-panel.vue
 - **Settings**: `server/docs/vg_settings.md`
 - **API**: `server/lib/resources/vg-app-user-auth.js`
 - **Database**: `server/docs/sql/vg_app_user_auth.sql`
-

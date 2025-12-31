@@ -21,6 +21,7 @@ Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
 - **Lock settings** control app-user login throttling and lockouts.
   - Max failures within a window trigger a lock for the configured duration.
 - **admin_pw** is included in managed QR code payloads for ODK Collect settings lock.
+  - Project-level overrides are supported via `vg_project_settings`.
   - QR codes are generated dynamically from this setting.
   - Used to configure ODK Collect's settings lock feature.
   - Both "Show QR" and password reset QR codes include this value.
@@ -29,7 +30,7 @@ Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
 
 - API: `GET /system/settings` returns current default values; `PUT /system/settings` updates them.
 - DB: update `vg_settings` directly if needed.
-  - Project overrides: update `vg_project_settings` for a specific `projectId` (TTL, cap, lockouts).
+  - Project overrides: update `vg_project_settings` for a specific `projectId` (TTL, cap, lockouts, admin_pw).
 
 ## Validation
 

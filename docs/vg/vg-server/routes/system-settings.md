@@ -4,6 +4,7 @@
 **GET /system/settings**
 
 - Auth: Admin.
+- Note: Values are global defaults. Project-level overrides are managed via `GET/PUT /projects/:projectId/app-users/settings`.
 - Response — HTTP 200, application/json:
   ```json
   {
@@ -17,6 +18,7 @@
 **PUT /system/settings**
 
 - Auth: Admin.
+- Note: Updates global defaults. Project-level overrides use `PUT /projects/:projectId/app-users/settings`.
 - Request (JSON):
   - `vg_app_user_session_ttl_days` (optional, positive integer): Session TTL in days.
   - `vg_app_user_session_cap` (optional, positive integer): Max active sessions per app user.

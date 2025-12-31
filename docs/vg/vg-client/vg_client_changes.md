@@ -58,7 +58,7 @@ forked Central client compared to the upstream ODK Central client.
 ### Secure QR behavior
 
 - Managed QR code only includes server URL and project info.
-- Includes `admin_pw` for ODK Collect settings configuration.
+- Includes `admin_pw` for ODK Collect settings configuration (project-level override, system default).
 - Username/password are shown below the QR code but are NOT embedded.
   - `src/components/field-key/vg-qr-panel.vue`
 

@@ -61,6 +61,8 @@ This document lists the key implementation points and modified core behavior.
 - `POST /projects/:projectId/app-users/:id/revoke-admin` -> `vgAppUserAuth.setActive(false)`
 - `GET /projects/:projectId/app-users/:id/sessions` -> `vgAppUserAuth.listSessions()`
 - `POST /projects/:projectId/app-users/:id/active` -> `vgAppUserAuth.setActive(active)`
+- `GET /projects/:projectId/app-users/settings` -> `VgAppUserAuth.getSettingWithProjectOverride*()`
+- `PUT /projects/:projectId/app-users/settings` -> `VgAppUserAuth.upsertProjectSetting()`
 - `POST /projects/:projectId/app-users/telemetry` -> `vgTelemetry.recordTelemetry()`
 - `GET /system/app-users/telemetry` -> `VgTelemetry.getTelemetry()`
 - `GET /system/settings` -> `VgAppUserAuth.getSessionTtlDays()` + `getSessionCap()`

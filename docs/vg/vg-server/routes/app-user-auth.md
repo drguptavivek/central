@@ -90,6 +90,28 @@
   { "success": true }
   ```
 
+## Project app-user settings (admin)
+**GET /projects/:projectId/app-users/settings**
+
+- Auth: Admin/manager on the project (`project.read`).
+- Response — HTTP 200, application/json:
+  ```json
+  { "vg_app_user_session_ttl_days": 3, "vg_app_user_session_cap": 3, "admin_pw": "vg_custom" }
+  ```
+  Values prefer project overrides from `vg_project_settings`, falling back to `vg_settings`.
+
+**PUT /projects/:projectId/app-users/settings**
+
+- Auth: Admin/manager on the project (`project.update`).
+- Request (JSON): any of
+  - `vg_app_user_session_ttl_days` (optional, positive integer)
+  - `vg_app_user_session_cap` (optional, positive integer)
+  - `admin_pw` (optional, non-empty string, max 72 chars)
+- Response — HTTP 200, application/json:
+  ```json
+  { "success": true }
+  ```
+
 ## Deactivate/reactivate app user (admin)
 **POST /projects/:projectId/app-users/:id/active**
 
