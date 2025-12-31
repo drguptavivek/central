@@ -32,6 +32,7 @@ Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
   - DB constraint enforces positive integer values.
 - **admin_pw**: Stored as plain text string.
   - Must be non-empty.
+  - Max length 72 characters.
   - No complexity requirements (any string allowed).
   - No encryption (stored plain text for ODK Collect QR inclusion).
 

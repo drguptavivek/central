@@ -20,7 +20,7 @@
 - Request (JSON):
   - `vg_app_user_session_ttl_days` (optional, positive integer): Session TTL in days.
   - `vg_app_user_session_cap` (optional, positive integer): Max active sessions per app user.
-  - `admin_pw` (optional, non-empty string): Admin password used by the VG app user tooling.
+  - `admin_pw` (optional, non-empty string, max 72 chars): Admin password used by the VG app user tooling.
 - Response — HTTP 200, application/json:
   ```json
   { "success": true }
@@ -28,4 +28,4 @@
 - Validation:
   - `vg_app_user_session_ttl_days`/`vg_app_user_session_cap` must be positive integers.
   - Numeric strings are accepted if they are integers (for example `"3"`). Decimal strings (for example `"3.5"`) are rejected.
-  - `admin_pw` must be a non-empty string when provided.
+  - `admin_pw` must be a non-empty string when provided, with a max length of 72 characters.
