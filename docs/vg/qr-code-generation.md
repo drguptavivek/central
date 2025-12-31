@@ -303,7 +303,7 @@ python3 decode-qr.py qr-image.png
 - ✅ `general.username` is present
 - ✅ `general.form_update_mode` = `"match_exactly"` (managed)
 - ✅ `admin.change_server` = `false`
-- ✅ `admin.admin_pw` = current system setting
+- ✅ `admin.admin_pw` = current project app-user setting (fallback to system default)
 - ✅ No literal `"..."` truncation markers
 - ✅ JSON is complete and valid
 
