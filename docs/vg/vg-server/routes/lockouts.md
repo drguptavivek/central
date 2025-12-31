@@ -7,6 +7,7 @@
 - Request (JSON):
   - `username` (mandatory, string): App user username to clear.
   - `ip` (optional, string): Clear lockout only for this IP; when omitted, only clears lockouts recorded with a null IP.
+  - Validation: `ip` must be a string when provided.
 - Response — HTTP 200, application/json:
   ```json
   { "success": true }
