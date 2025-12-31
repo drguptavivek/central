@@ -27,9 +27,9 @@ Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
 
 ## Update paths
 
-- API: `GET /system/settings` returns current values; `PUT /system/settings` updates them.
+- API: `GET /system/settings` returns current default values; `PUT /system/settings` updates them.
 - DB: update `vg_settings` directly if needed.
-  - Project overrides: update `vg_project_settings` for a specific `projectId`.
+  - Project overrides: update `vg_project_settings` for a specific `projectId` (TTL, cap, lockouts).
 
 ## Validation
 
