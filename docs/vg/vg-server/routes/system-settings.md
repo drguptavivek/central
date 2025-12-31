@@ -26,6 +26,7 @@
   { "success": true }
   ```
 - Validation:
+  - At least one of `vg_app_user_session_ttl_days`, `vg_app_user_session_cap`, or `admin_pw` must be provided; missing all returns `400.3` `missingParameters`.
   - `vg_app_user_session_ttl_days`/`vg_app_user_session_cap` must be positive integers.
   - Numeric strings are accepted if they are integers (for example `"3"`). Decimal strings (for example `"3.5"`) are rejected.
   - `admin_pw` must be a non-empty string when provided, with a max length of 72 characters.
