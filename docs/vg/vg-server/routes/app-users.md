@@ -52,6 +52,7 @@
   ```
   `fullName` must be a non-empty string; `phone` is trimmed and capped at 25 characters. `username` is immutable once created.
 - Validation:
+  - At least one of `fullName` or `phone` is required; missing both returns `400.3` `missingParameters`.
   - Non-string `fullName`/`phone` → `400.11` `invalidDataTypeOfParameter`.
   - Whitespace-only `phone` is normalized to `null`.
 - Response — HTTP 200, application/json (no token is ever returned):
