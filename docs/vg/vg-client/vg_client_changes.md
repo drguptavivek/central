@@ -62,6 +62,12 @@ forked Central client compared to the upstream ODK Central client.
 - Username/password are shown below the QR code but are NOT embedded.
   - `src/components/field-key/vg-qr-panel.vue`
 
+### Project App User Settings
+
+- New **Project > App User Settings** tab for per-project TTL, cap, and admin_pw.
+  - `src/components/project/vg-app-user-settings.vue`
+  - `src/routes.js`
+
 ### App Users in Form Access
 
 - Form Access now lists **active** users even if tokens are short-lived and not
