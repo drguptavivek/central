@@ -22,7 +22,8 @@
   - Non-string `username`/`password` → `400.11` `invalidDataTypeOfParameter`.
   - Non-string `deviceId`/`comments` → `400.11` `invalidDataTypeOfParameter`.
 - Failure: HTTP 401.2 `authenticationFailed` (generic message).
-- Lockout: 5 failed attempts in 5 minutes per `username+IP` → 10-minute lock. Attempts are logged in `vg_app_user_login_attempts` with success/failure.
+- Lockout: defaults to 5 failed attempts in 5 minutes per `username+IP` → 10-minute lock. Attempts are logged in `vg_app_user_login_attempts` with success/failure; lockouts are tracked in `vg_app_user_lockouts`.
+  - Project overrides are read from `vg_project_settings` (see `docs/vg/vg-server/vg_settings.md`).
 
 ## Change password (self)
 **POST /projects/:projectId/app-users/:id/password/change**

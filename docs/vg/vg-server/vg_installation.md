@@ -24,6 +24,7 @@ This creates:
 - `vg_field_key_auth`
 - `vg_settings` (seeds TTL 3 days, cap 3)
 - `vg_app_user_login_attempts`
+- `vg_app_user_lockouts`
 - `vg_app_user_sessions`
 - `vg_app_user_telemetry`
 

@@ -6,6 +6,9 @@ VG stores session configuration in `vg_settings`.
 
 - `vg_app_user_session_ttl_days` (default: 3)
 - `vg_app_user_session_cap` (default: 3)
+- `vg_app_user_lock_max_failures` (default: 5)
+- `vg_app_user_lock_window_minutes` (default: 5)
+- `vg_app_user_lock_duration_minutes` (default: 10)
 - `admin_pw` (default: `'vg_custom'`)
 
 Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
@@ -15,6 +18,8 @@ Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
 - **TTL** controls how long a bearer token remains valid.
 - **Cap** controls how many active sessions an app user can have.
   - When the cap is exceeded, older sessions are revoked on login.
+- **Lock settings** control app-user login throttling and lockouts.
+  - Max failures within a window trigger a lock for the configured duration.
 - **admin_pw** is included in managed QR code payloads for ODK Collect settings lock.
   - QR codes are generated dynamically from this setting.
   - Used to configure ODK Collect's settings lock feature.
@@ -24,12 +29,16 @@ Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
 
 - API: `GET /system/settings` returns current values; `PUT /system/settings` updates them.
 - DB: update `vg_settings` directly if needed.
+  - Project overrides: update `vg_project_settings` for a specific `projectId`.
 
 ## Validation
 
 - **TTL & Cap**: Stored as strings but parsed as numbers server-side.
   - Must be positive integers (TTL in days, cap in number of sessions).
   - DB constraint enforces positive integer values.
+- **Lock settings**: Stored as strings but parsed as numbers server-side.
+  - Must be positive integers (max failures, window minutes, duration minutes).
+  - Project-level overrides enforce positive integers in `vg_project_settings`.
 - **admin_pw**: Stored as plain text string.
   - Must be non-empty.
   - Max length 72 characters.

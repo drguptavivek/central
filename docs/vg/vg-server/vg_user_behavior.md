@@ -36,9 +36,10 @@ This document describes all user-visible behavior changes introduced by VG app-u
 
 ## Login throttling and lockouts
 
-- 5 failed attempts in 5 minutes per username+IP triggers a 10-minute lock.
+- Defaults: 5 failed attempts in 5 minutes per username+IP triggers a 10-minute lock.
+- Project overrides can be set via `vg_project_settings` for max failures, window minutes, and duration minutes.
 - Attempts are tracked server-side for lockout enforcement.
-- Lockouts are recorded in `vg_app_user_login_attempts`.
+- Lockouts are recorded in `vg_app_user_lockouts`.
 - Project mismatch logins count as failed attempts for lockout tracking.
 - To clear a lockout, delete recent failed attempts for the username+IP or backdate them beyond the lock window.
 - Admins can clear lockouts via `POST /system/app-users/lockouts/clear`.
