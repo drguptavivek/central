@@ -8,7 +8,7 @@ if [[ ${SKIP_FRONTEND_BUILD-} != "" ]]; then
   echo "[build-frontend] Skipping frontend build."
 
   # Create minimal fake frontend to allow tests to pass:
-  mkdir dist dist/assets dist/fonts
+  mkdir -p dist dist/assets dist/fonts
   echo > dist/blank.html
   echo > dist/favicon.ico
   echo > dist/index.html '<div id="app"></div>'
