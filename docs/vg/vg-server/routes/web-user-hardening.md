@@ -33,6 +33,7 @@ HTTP/1.1 401 Unauthorized
 ### Locked out
 ```
 HTTP/1.1 401 Unauthorized
+Retry-After: <seconds>
 {
   "code": 401.2,
   "message": "Could not authenticate with the provided credentials."

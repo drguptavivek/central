@@ -58,6 +58,20 @@ in `getodk/central-backend`. Use it to keep rebases manageable.
   Risk/notes: Low; configuration read.
   Related commits/PRs: vg-work history
 
+- Date: 2026-01-01
+  File: lib/http/endpoint.js
+  Change summary: Add Retry-After header support for lockout responses.
+  Reason: Communicate remaining lockout time to clients.
+  Risk/notes: Low; header-only change.
+  Related commits/PRs: vg-work history
+
+- Date: 2026-01-01
+  File: lib/model/query/audits.js
+  Change summary: Add latest web login lockout timestamp query.
+  Reason: Compute Retry-After for web login lockouts.
+  Risk/notes: Low; query-only change.
+  Related commits/PRs: vg-work history
+
 - Date: 2025-12-21
   File: docs/database.md
   Change summary: Documented VG auth tables and settings.
