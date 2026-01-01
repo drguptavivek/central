@@ -24,6 +24,7 @@ Scope: `/v1/sessions` (web user login).
 ### Failed login (wrong password or unknown email)
 ```
 HTTP/1.1 401 Unauthorized
+X-Login-Attempts-Remaining: <count>
 {
   "code": 401.2,
   "message": "Could not authenticate with the provided credentials."

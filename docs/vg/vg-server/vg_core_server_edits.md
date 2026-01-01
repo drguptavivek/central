@@ -66,6 +66,13 @@ in `getodk/central-backend`. Use it to keep rebases manageable.
   Related commits/PRs: vg-work history
 
 - Date: 2026-01-01
+  File: lib/http/endpoint.js
+  Change summary: Add X-Login-Attempts-Remaining header support for web login failures.
+  Reason: Communicate remaining login attempts to clients.
+  Risk/notes: Low; header-only change.
+  Related commits/PRs: vg-work history
+
+- Date: 2026-01-01
   File: lib/model/query/audits.js
   Change summary: Add latest web login lockout timestamp query.
   Reason: Compute Retry-After for web login lockouts.

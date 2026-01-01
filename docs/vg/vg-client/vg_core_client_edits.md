@@ -16,6 +16,13 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
 
 ## Entries
 
+- Date: 2026-01-01
+  File: src/components/account/login.vue
+  Change summary: Display login attempts remaining and lockout retry info from headers.
+  Reason: Provide user feedback for web login hardening.
+  Risk/notes: Low; UI messaging.
+  Related commits/PRs: vg-work history
+
 - Date: 2025-12-21
   File: CONTRIBUTING.md
   Change summary: Default e2e base URL updated to http://central.local:8989.
