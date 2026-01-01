@@ -51,6 +51,13 @@ in `getodk/central-backend`. Use it to keep rebases manageable.
   Risk/notes: Low; query-only change.
   Related commits/PRs: vg-work history
 
+- Date: 2026-01-01
+  File: lib/resources/sessions.js
+  Change summary: Make web login lockout duration configurable via vg_settings.
+  Reason: Allow system-level control of web user lockout duration.
+  Risk/notes: Low; configuration read.
+  Related commits/PRs: vg-work history
+
 - Date: 2025-12-21
   File: docs/database.md
   Change summary: Documented VG auth tables and settings.

@@ -23,3 +23,4 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 - `docs/vg/vg-server/routes/app-user-auth.md` (project app-user settings endpoints)
 - `docs/vg/vg-server/routes/telemetry.md` (app user telemetry capture)
 - `docs/vg/vg-server/routes/lockouts.md` (lockout clear)
+- `docs/vg/vg-server/routes/web-user-hardening.md` (web user `/v1/sessions` hardening)

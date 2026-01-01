@@ -9,6 +9,7 @@ VG stores session configuration in `vg_settings`.
 - `vg_app_user_lock_max_failures` (default: 5)
 - `vg_app_user_lock_window_minutes` (default: 5)
 - `vg_app_user_lock_duration_minutes` (default: 10)
+- `vg_web_user_lock_duration_minutes` (default: 10)
 - `admin_pw` (default: `'vg_custom'`)
 
 Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
@@ -20,6 +21,7 @@ Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
   - When the cap is exceeded, older sessions are revoked on login.
 - **Lock settings** control app-user login throttling and lockouts.
   - Max failures within a window trigger a lock for the configured duration.
+- **Web user lock duration** controls `/v1/sessions` lockout length for web users.
 - **admin_pw** is included in managed QR code payloads for ODK Collect settings lock.
   - Project-level overrides are supported via `vg_project_settings`.
   - QR codes are generated dynamically from this setting.

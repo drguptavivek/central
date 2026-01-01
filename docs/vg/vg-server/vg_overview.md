@@ -4,7 +4,7 @@
 
 VG introduces short-lived, password-based authentication for app users (field keys). It replaces long-lived token QR credentials with login-issued bearer tokens and adds server-side session controls.
 
-Only app-user authentication and session behavior is changed; all other Central APIs and user flows remain the same.
+App-user auth changes are the primary focus; VG also hardens web user login behavior for `/v1/sessions` (see related docs).
 
 ## Key changes (behavior)
 
@@ -18,6 +18,7 @@ Only app-user authentication and session behavior is changed; all other Central 
 - Legacy long-lived field-key sessions without a matching `vg_field_key_auth` row are rejected.
 - Session metadata (IP/user agent/deviceId/comments) is captured for admin viewing.
 - App-user telemetry is captured (deviceId, Collect version, device timestamps, location) and is available to system admins via a paginated listing.
+- Web user login hardening: failed login audits, lockouts, and timing normalization.
 
 ## Defaults
 
@@ -32,3 +33,4 @@ Only app-user authentication and session behavior is changed; all other Central 
 - Implementation: `server/docs/vg_implementation.md`
 - Tests: `server/docs/vg_tests.md`
 - Core edits: `server/docs/vg_core_server_edits.md`
+- Web login hardening: `server/docs/routes/web-user-hardening.md`
