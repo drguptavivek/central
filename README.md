@@ -12,6 +12,8 @@ The VG implementation introduces:
 -   **Username/Password Authentication**: App Users must log in to obtain a session token.
 -   **Short-Lived Tokens**: Session tokens have a configurable expiration (default 3 days).
 -   **Enhanced Management**: Support for phone numbers, password resets, and explicit revocation/restoration.
+-   **Web login hardening**: Rate limiting/lockouts, audit logging for failed logins, and normalized failure timing for `/v1/sessions`.
+-   **Project-level app-user settings**: UI + APIs for per-project overrides (session TTL/cap, `admin_pw` for QR provisioning).
 
 
 ## Fork notes (vg-work)
@@ -21,6 +23,8 @@ This fork tracks VG-specific customizations to the Central frontend and backend 
 * App user short-token UI notes: [`client/docs/vg-component-short-token-app-users.md`](https://github.com/drguptavivek/central-frontend/blob/vg-work/docs/vg-component-short-token-app-users.md)
 * Setup guide: [`GETTING_STARTED.md`](GETTING_STARTED.md)
 * Initialization notes: [`i00- initialization.md`](i00-%20initialization.md)
+* Docker development notes: [`docs/vg/docker-development.md`](docs/vg/docker-development.md)
+* Docker deployment notes: [`docs/vg/docker-deployment.md`](docs/vg/docker-deployment.md)
 
 
 * Backend notes: [`server/README.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/README.md#fork-notes-vg-work)
@@ -30,6 +34,7 @@ This fork tracks VG-specific customizations to the Central frontend and backend 
 * Backend implementation: [`server/docs/vg_implementation.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_implementation.md)
 * Backend installation: [`server/docs/vg_installation.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_installation.md)
 * Backend API behavior details: [`server/docs/vg_api.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_api.md)
+* Backend web-login hardening: [`server/docs/vg_web_login_hardening.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_web_login_hardening.md)
 * Backend core edits log: [`server/docs/vg_core_server_edits.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_core_server_edits.md)
 * Backend test notes: [`server/docs/vg_tests.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_tests.md)
 
