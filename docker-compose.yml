@@ -97,10 +97,11 @@ services:
       - db_net
       - web
   nginx:
-    platform: linux/amd64
     build:
       context: .
       dockerfile: nginx.dockerfile
+      args:
+        NGINX_BASE_IMAGE: ${NGINX_BASE_IMAGE:-drguptavivek/central-nginx-vg-base:6.0.1}
     depends_on:
       - service
       - enketo
@@ -116,6 +117,12 @@ services:
       - ./files/local/customssl/:/etc/customssl/live/local/:ro
       - ./files/nginx/odk.conf.template:/usr/share/odk/nginx/odk.conf.template:ro
       - ./files/nginx/client-config.json.template:/usr/share/odk/nginx/client-config.json.template:ro
+      # Optional overrides/persistence:
+      - ./crs/crs-setup.conf.example:/etc/modsecurity/crs/crs-setup.conf:ro
+      - ./crs/rules:/etc/modsecurity/crs/rules:ro
+      - ./crs_custom:/etc/modsecurity/custom:ro
+      - ./logs/nginx:/var/log/nginx
+      - ./logs/modsecurity:/var/log/modsecurity
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"

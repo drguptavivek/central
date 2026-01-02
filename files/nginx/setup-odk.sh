@@ -8,6 +8,9 @@ if [[ $OIDC_ENABLED != 'true' ]] && [[ $OIDC_ENABLED != 'false' ]]; then
   exit 1
 fi
 
+# Ensure expected dirs exist for logging.
+mkdir -p /var/log/modsecurity
+
 /scripts/envsub.awk \
   < /usr/share/odk/nginx/client-config.json.template \
   > /usr/share/nginx/html/client-config.json

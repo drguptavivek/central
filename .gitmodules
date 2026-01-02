@@ -10,3 +10,6 @@
 [submodule "central-nginx-vg-base"]
 	path = central-nginx-vg-base
 	url = https://github.com/drguptavivek/central-nginx-vg-base.git
+[submodule "crs"]
+	path = crs
+	url = https://github.com/coreruleset/coreruleset.git

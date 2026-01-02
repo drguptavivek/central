@@ -112,6 +112,24 @@ server {
 
   server_tokens off;
 
+  # Log to both container stdio and a file path (mount `/var/log/nginx` as a volume to persist).
+  access_log /dev/stdout;
+  access_log /var/log/nginx/access.log;
+  error_log /dev/stderr warn;
+  error_log /var/log/nginx/error.log warn;
+
+  # Enable ModSecurity + OWASP CRS (mount `/etc/modsecurity/crs` to override CRS as needed).
+  modsecurity on;
+  modsecurity_rules_file /etc/modsecurity/modsecurity-odk.conf;
+
+  # Hardening via headers-more (requires dynamic module to be loaded at nginx startup).
+  include /usr/share/odk/nginx/vg-headers-more.conf;
+  etag off;
+
+  # Reduce upstream header leakage.
+  proxy_hide_header X-Powered-By;
+  proxy_hide_header Server;
+
   add_header Content-Security-Policy-Report-Only "default-src 'none'; connect-src https://translate.google.com https://translate.googleapis.com; img-src https://translate.google.com; report-uri /csp-report";
   include /usr/share/odk/nginx/common-headers.conf;
 
