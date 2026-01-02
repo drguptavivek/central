@@ -7,3 +7,6 @@
 [submodule "agentic_kb"]
 	path = agentic_kb
 	url = https://github.com/drguptavivek/agentic_kb.git
+[submodule "central-nginx-vg-base"]
+	path = central-nginx-vg-base
+	url = https://github.com/drguptavivek/central-nginx-vg-base.git
