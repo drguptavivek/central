@@ -13,8 +13,9 @@ forked Central client compared to the upstream ODK Central client.
 1) App User auth overhaul (short-lived sessions, username/password flow, secure
    QR codes, additional fields like phone) across list/create/reset/edit flows.
 2) Admin System Settings UI for App User session TTL, session cap, and admin_pw (Collect).
-3) Dev environment and proxy changes for `central.local` and Dockerized Vite.
-4) E2E test defaults and reliability tweaks.
+3) Enketo Status UI for viewing and regenerating Enketo IDs across all forms.
+4) Dev environment and proxy changes for `central.local` and Dockerized Vite.
+5) E2E test defaults and reliability tweaks.
 
 ---
 
@@ -110,30 +111,52 @@ Adds a new System tab to configure session policies for app users.
 
 ---
 
-## 2.1) routes.js Changes (Detailed)
+## 3) Enketo Status UI
 
-`src/routes.js` has two substantive functional changes and one large formatting
-change:
+Adds a new System tab to view and manage Enketo IDs across all forms and projects.
 
-1) **System Settings route added**
-   - New child route under `/system`:
-     - Path: `/system/settings`
-     - Component: `VgSettings`
-     - Permissions: `config.read` + `config.set`
-     - Title: `systemHome.tab.settings`
-   - See the exact route block in the diff section above.
+- New **System > Enketo Status** tab.
+  - `src/components/system/home.vue`
+  - `src/routes.js`
+- New status view showing:
+  - Summary cards with counts by status (healthy, never_pushed, draft_only, closed)
+  - Filterable table by Project ID and Form ID
+  - Individual regenerate buttons for forms needing Enketo IDs
+  - Bulk regenerate action for all "never pushed" forms
+  - `src/components/system/vg-enketo-status.vue`
+- Data resource for `/v1/system/enketo-status`.
+  - `src/request-data/resources.js`
+- API paths for status retrieval and regeneration.
+  - `src/util/request.js`
 
-2) **No change to App User route paths**
-   - The `/projects/:projectId/app-users` path still maps to `FieldKeyList`, but
-     `FieldKeyList` now loads `vg-list.vue` via `src/util/load-async.js`.
+### Status Categories
 
-3) **Formatting-only diff**
-   - The large diff block in `src/routes.js` is mostly indentation and comment
-     reflow; logic is unchanged outside the System Settings route block.
+| Status | Description | Can Regenerate |
+|--------|-------------|----------------|
+| `healthy` | Has both enketoId and enketoOnceId | No |
+| `never_pushed` | enketoId is NULL (never pushed to Enketo) | Yes |
+| `draft_only` | Only draft has enketoId, published form doesn't | No |
+| `closed` | Form state is not 'open' | No |
+| `push_failed` | Last push attempt failed | Yes |
+
+### Permissions
+
+- **View**: Requires `config.read` permission
+- **Regenerate**: Requires `config.set` permission (admin only)
 
 ---
 
-## 3) Dev Environment + Proxy Changes
+## 3.1) routes.js Changes for Enketo Status
+
+New child route added under `/system`:
+- Path: `/system/enketo-status`
+- Component: `VgEnketoStatus`
+- Permissions: `config.read` (view), `config.set` (regenerate)
+- Title: `systemHome.tab.enketoStatus`
+
+---
+
+## 4) Dev Environment + Proxy Changes
 
 ### Dockerized Vite Dev Container
 
@@ -163,7 +186,7 @@ change:
 
 ---
 
-## 4) E2E Test Updates
+## 5) E2E Test Updates
 
 - Default domain changed to `central.local` in CLI runner.
 - Removes `--skip-install` option and always installs dependencies.
@@ -198,6 +221,7 @@ change:
   - `/version.txt` now returns `development\n` with `text/plain`.
 - `src/components/system/home.vue`
   - Added a **Settings** tab under System.
+  - Added an **Enketo Status** tab under System.
 - `src/components/toast.vue`
   - Adds `toast.options?.type` as a CSS class and styles success to green.
 - `src/container/alerts.js`
@@ -205,19 +229,25 @@ change:
     `autoHide: false`.
 - `src/locales/en.json5`
   - Added `systemHome.tab.settings` label.
+  - Added `systemHome.tab.enketoStatus` label.
   - Added `vgSettings` labels and validation message.
+  - Added `vgEnketoStatus` labels for status types, actions, alerts, and filters.
 - `src/request-data/project.js`
   - Form Access uses `fieldKey.active === true` instead of `token` presence to
     include app users.
 - `src/request-data/resources.js`
   - Added `systemSettings` requestData resource.
+  - Added `enketoStatus` requestData resource with custom transformResponse.
 - `src/routes.js`
   - Added `/system/settings` route and ties it to `VgSettings`.
+  - Added `/system/enketo-status` route and ties it to `VgEnketoStatus`.
 - `src/util/load-async.js`
   - `FieldKeyList` now loads `vg-list.vue`.
   - Added `VgSettings` loader.
+  - Added `VgEnketoStatus` loader.
 - `src/util/request.js`
   - Added API paths for app-user auth (`login`, `update`, `reset`, `revoke`, `active`).
+  - Added API paths for Enketo status (`enketoStatus`, `enketoStatusRegenerate`).
 - `vite.config.js`
   - Set `host: true` and `allowedHosts: ['central.local']` for dev server.
 
@@ -477,4 +507,5 @@ diff --git a/vite.config.js b/vite.config.js
 - `src/components/field-key/vg-revoke.vue`
 - `src/components/field-key/vg-row.vue`
 - `src/components/system/vg-settings.vue`
+- `src/components/system/vg-enketo-status.vue`
 - `src/util/password-generator.js`

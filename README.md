@@ -5,10 +5,10 @@ This is a VG fork of the upstream ODK Central meta repo (`client/` + `server/` s
 - Upstream: `getodk/central`
 - This fork focuses on operational security for App Users (Field Keys), and enabling an ODK Collect workflow with login + PIN protection.
 
-## What’s included in this fork
+## What's included in this fork
 
-- **Central backend (`server/`)**: VG App User Auth (username/password + short-lived sessions), session caps/TTL, lockouts, audit logging, telemetry capture + admin listing, and web-user `/v1/sessions` hardening.
-- **Central frontend (`client/`)**: Admin UX for app users (username/phone, create/reset/revoke/restore), System + Project settings UI (TTL/cap/`admin_pw`), and session/device visibility.
+- **Central backend (`server/`)**: VG App User Auth (username/password + short-lived sessions), session caps/TTL, lockouts, audit logging, telemetry capture + admin listing, web-user `/v1/sessions` hardening, and Enketo Status management.
+- **Central frontend (`client/`)**: Admin UX for app users (username/phone, create/reset/revoke/restore), System + Project settings UI (TTL/cap/`admin_pw`), session/device visibility, and Enketo Status monitoring/regeneration.
 - **ODK Collect fork**: Login + PIN protection, token expiry UX (timer + revalidation notifications), offline grace-period behavior, and shared-device isolation. -  https://github.com/drguptavivek/collect
 
 ## Why this fork exists
@@ -36,6 +36,7 @@ This fork replaces the long-lived token model with an explicit login/session mod
 - **Security UX**: QR codes are for configuration (not embedded credentials); managed QR can include `admin_pw` for Collect settings lock.
 - **Web user Login hardening**: Additional protections for `/v1/sessions` (lockouts, auditing, response behavior).
 - **Telemetry**:  App-user telemetry capture + admin listing.
+- **Enketo Status**: Admin tools to view and regenerate Enketo IDs across all forms, with status categorization (healthy, never_pushed, draft_only, closed, push_failed).
 
 ## Benefits for survey data managers / investigators
 
@@ -114,6 +115,7 @@ See detailed docs in the ODK Collect fork repo: https://github.com/drguptavivek/
 - Docker deployment (VG): `docs/vg/docker-deployment.md`
 - Server docs entry: `docs/vg/vg-server/vg_overview.md`
 - Server security controls: `docs/vg/vg-server/vg_security.md`
+- Server API routes: `docs/vg/vg-server/routes/`
 - Client docs entry: `docs/vg/vg-client/vg_client_changes.md`
 
 
