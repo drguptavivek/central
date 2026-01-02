@@ -1,8 +1,25 @@
 # VG app-user auth: test scenarios and status
 
+> **Last Updated**: 2026-01-02
+
 Key scenarios covered for the vg app-user auth / short-lived token work.
 
 Note: the test suite uses the fixture `server/test/integration/fixtures/03-vg-app-user-auth.js` to create VG tables in the test DB. It does not apply `server/docs/sql/vg_app_user_auth.sql` directly; that SQL file is for manual setup/upgrade in non-test environments.
+
+## Test inventory (current)
+
+Approximate test counts (by `it(...)` blocks):
+
+- Integration:
+  - `test/integration/api/vg-app-user-auth.js`: 55
+  - `test/integration/api/vg-tests-orgAppUsers.js`: 22
+  - `test/integration/api/vg-telemetry.js`: 13
+  - `test/integration/api/vg-webusers.js`: 6
+- Unit:
+  - `test/unit/util/vg-password.js`: 6
+  - `test/unit/domain/vg-app-user-auth.js`: 1
+
+Total (above files): 103
 
 | Scenario | Coverage | Status | Notes | Command |
 | --- | --- | --- | --- | --- |
@@ -20,15 +37,19 @@ Note: the test suite uses the fixture `server/test/integration/fixtures/03-vg-ap
 | Submission denied with expired/foreign/malformed tokens | `test/integration/api/vg-tests-orgAppUsers.js` | ✅ Pass | Covers expired token, token from another project, and malformed token cases | same as above |
 | Submission with old token after password change fails; new token works | `test/integration/api/vg-tests-orgAppUsers.js` | ✅ Pass | Old token 403, new token 200 post-change | same as above |
 | Telemetry capture + admin listing (filters, paging) | `test/integration/api/vg-telemetry.js` | ✅ Pass | App-user telemetry write and system admin listing with filters | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-telemetry.js` |
+| Web-user login hardening (audit, lockout duration, attempts remaining, Retry-After) | `test/integration/api/vg-webusers.js` | ✅ Pass | Covers `/v1/sessions` behavior (non-OIDC): lockouts + headers + audit details | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-webusers.js` |
 | Unit: password policy accept | `test/unit/util/vg-password.js` | ✅ Pass | Valid password returns true | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js` |
 | Unit: too short | `test/unit/util/vg-password.js` | ✅ Pass | Rejects short password | same as above |
 | Unit: missing special char | `test/unit/util/vg-password.js` | ✅ Pass | Rejects missing special | same |
 | Unit: missing uppercase | `test/unit/util/vg-password.js` | ✅ Pass | Rejects missing uppercase | same |
 | Unit: missing lowercase | `test/unit/util/vg-password.js` | ✅ Pass | Rejects missing lowercase | same |
 | Unit: missing digit | `test/unit/util/vg-password.js` | ✅ Pass | Rejects missing digit | same |
+| Unit: self revoke requires current session | `test/unit/domain/vg-app-user-auth.js` | ✅ Pass | Ensures `revokeSessions(..., currentOnly=true)` rejects if current session missing | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/domain/vg-app-user-auth.js` |
 
 Run in this session:
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js`
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js`
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js` (vg-only rewrite of legacy app-user routes)
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-telemetry.js`
+- ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-webusers.js`
+- ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/domain/vg-app-user-auth.js`

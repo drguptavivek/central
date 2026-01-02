@@ -1,99 +1,202 @@
-# VG-FORK 
+# VG Fork of ODK Central
 
-This fork shifts App User authentication from long-lived embedded tokens to an explicit login/session model, adding short-lived bearer sessions, server-enforced TTL/caps, and safer QR provisioning; it also updates the admin UX and pairs with a compatible ODK Collect fork for field usage. API changes are scoped to new app-user auth/session endpoints (login, password reset/change, revoke/restore, activation) plus VG settings keys (`vg_app_user_session_ttl_days`, `vg_app_user_session_cap`); all other APIs remain unchanged. Sessions are capped per app user (default 3) and older sessions are automatically revoked on login when the cap is exceeded; TTL defaults to 3 days. Roles: project admins/managers can create/update app users, reset passwords, revoke sessions, and activate/deactivate; app users can only log in for tokens (not the web UI), change their own password, and revoke their own sessions.
+This is a VG fork of the upstream ODK Central meta repo (`client/` + `server/` submodules):
 
-This document describes the technical implementation of the "VG App User Auth" system, which introduces username/password authentication and short-lived session tokens for App Users (Field Keys), replacing the legacy long-lived token model.
+- Upstream: `getodk/central`
+- This fork focuses on operational security for App Users (Field Keys), and enabling an ODK Collect workflow with login + PIN protection.
 
-## Overview
+## What’s included in this fork
 
-Legacy ODK Central App Users rely on a long-lived API token (valid for 10+ years) embedded in the QR code. This poses a security risk if the QR code is compromised.
+- **Central backend (`server/`)**: VG App User Auth (username/password + short-lived sessions), session caps/TTL, lockouts, audit logging, telemetry capture + admin listing, and web-user `/v1/sessions` hardening.
+- **Central frontend (`client/`)**: Admin UX for app users (username/phone, create/reset/revoke/restore), System + Project settings UI (TTL/cap/`admin_pw`), and session/device visibility.
+- **ODK Collect fork**: Login + PIN protection, token expiry UX (timer + revalidation notifications), offline grace-period behavior, and shared-device isolation. -  https://github.com/drguptavivek/collect
 
-The VG implementation introduces:
--   **Username/Password Authentication**: App Users must log in to obtain a session token.
--   **Short-Lived Tokens**: Session tokens have a configurable expiration (default 3 days).
--   **Enhanced Management**: Support for phone numbers, password resets, and explicit revocation/restoration.
--   **Web login hardening**: Rate limiting/lockouts, audit logging for failed logins, and normalized failure timing for `/v1/sessions`.
--   **Project-level app-user settings**: UI + APIs for per-project overrides (session TTL/cap, `admin_pw` for QR provisioning).
+## Why this fork exists
+
+Upstream ODK Central Mobile App Users rely on a long-lived API token that can be shared via QR code. For some deployments, that model is too risky operationally (tokens are effectively permanent if leaked), and it does not support the “login + PIN” style protection we need in ODK Collect.
+
+Rationale for this fork:
+
+- We need **login** and **PIN protection** in ODK Collect for our use case (revalidate trust between device and server).
+- To support login, Central needs **app-user passwords** with **strong password policy** (reject weak passwords).
+- We also want optional **phone numbers** for app users.
+- Upstream supports revocation; we also need **restore/reactivate** App users to facilitate their movement / field operations.
+- We want to discourage credential sharing: enforce **unique username per collector** and **limit concurrent sessions** (revoke older sessions on login).
+- All of this must be **audit logged**.
+- Session TTL and maximum active sessions must be **configurable**.
+
+This fork replaces the long-lived token model with an explicit login/session model for app users: username/password → short-lived bearer token, with server-enforced Collect app session validity (TTL) and concurrent app session caps.
+
+## Operational differences (high level)
+
+- **App user auth model**: Username/password login issues a short-lived bearer token; tokens are not returned from create/list endpoints. 
+- **Token lifecycle**: Fixed expiry (no sliding refresh) of App user issued lokens based on `vg_app_user_session_ttl_days` (default `3`days).
+- **Session caps**: Server enforces `vg_app_user_session_cap` (default `3`); older sessions are revoked on login when the cap is exceeded.
+- **Admin controls**: Reset/change password, revoke sessions, deactivate/reactivate, session listing with metadata.
+- **Security UX**: QR codes are for configuration (not embedded credentials); managed QR can include `admin_pw` for Collect settings lock.
+- **Web user Login hardening**: Additional protections for `/v1/sessions` (lockouts, auditing, response behavior).
+- **Telemetry**:  App-user telemetry capture + admin listing.
+
+## Benefits for survey data managers / investigators
+
+This model is designed to improve operational control and accountability in the field, especially for sensitive studies and shared-device deployments:
+
+- **Re-establish trust periodically**: short-lived tokens force revalidation every few days (configurable), reducing the blast radius of leaked credentials.
+- **Stronger identity and accountability**: unique usernames per collector, auditable login/session activity, and clearer linkage between submissions and an authenticated field worker.
+- **Rapid response to risk**: deactivate/reactivate users, revoke sessions, clear lockouts, and rotate passwords without having to rotate long-lived tokens.
+- **Reduced credential sharing incentives**: session caps and older-session revocation discourage concurrent sharing of a single account.
+- **Operational visibility**: session/device metadata (and optional telemetry/map views) help supervisors detect suspicious patterns, device churn, and support field issues faster.
+- **Configurable policy**: TTL and max active sessions can be tuned per deployment (and per project where supported) instead of being “one size fits all”.
+- **Device-side safety controls (Collect)**: PIN lock on app relaunch/backgrounding and brute-force protection (session wipe after repeated PIN failures) reduce risk on lost/shared devices.
+- **Server-side brute-force protection**: app-user login attempts are tracked and can trigger username+IP lockouts after repeated failures within a configurable window, limiting password-guessing attacks.
+
+## How it works (happy path)
+
+- Admin creates an app user (project-scoped) with **unique username**, display name, optional phone.
+- Admin provides credentials (generated password on create/reset in the VG UI). System enforces strong passwords that are actually rememberable.
+- App user logs in via ODK Collect forked Application `POST /v1/projects/:projectId/app-users/login` → receives short-lived bearer token + `expiresAt`.
+- Collect App uses `Authorization: Bearer <token>` for submissions; when the token expires, the user re-authenticates.
+
+## Roles, scopes, and configuration (high level)
+
+- **Project-scoped app users**: app users belong to a single project.
+- **System settings** (`/v1/system/settings`): defaults for TTL/cap/`admin_pw` (requires system config permissions).
+- **Project settings** (`/v1/projects/:projectId/app-users/settings`): per-project overrides for TTL/cap/`admin_pw` (requires project update permissions).
+- **Lockouts**: app-user lockouts can be cleared via `POST /v1/system/app-users/lockouts/clear` (requires system config permissions).
+
+## Password and account lifecycle (high level)
+
+- Passwords must meet the VG password policy; weak passwords are rejected.
+- Passwords are not stored on device (Collect) and are not embedded in QR codes.
+- Deactivate/revoke immediately blocks authentication and terminates sessions; restore/reactivate re-enables login.
+
+## Sessions, devices, telemetry, and auditing (high level)
+
+- **Sessions/devices**: Central can list active sessions for an app user including metadata like IP, user agent, and `deviceId`. “Devices” are derived from the `deviceId` reported by the client.
+- **Telemetry**: Collect can submit optional device/security telemetry; Central provides admin listing and (in this fork) map/table views.
+- **Audit logs**: key events are audited (login success/failure, lockouts/clears, password resets/changes, session revokes, activation changes, and related admin actions).
+
+## Deployment note
+
+- Apply the VG DB schema before using VG features: `server/docs/sql/vg_app_user_auth.sql`
 
 
-## Fork notes (vg-work)
+## ODK Collect fork summary (AIIMS ODK Collect)
 
-This fork tracks VG-specific customizations to the Central frontend and backend while keeping changes modular for easier rebasing onto upstream `master`. See the fork notes in each submodule, plus the detailed customization docs:
+The “short-lived token app users” work is intended to support a Collect workflow where:
 
-* App user short-token UI notes: [`client/docs/vg-component-short-token-app-users.md`](https://github.com/drguptavivek/central-frontend/blob/vg-work/docs/vg-component-short-token-app-users.md)
-* Setup guide: [`GETTING_STARTED.md`](GETTING_STARTED.md)
-* Initialization notes: [`i00- initialization.md`](i00-%20initialization.md)
-* Docker development notes: [`docs/vg/docker-development.md`](docs/vg/docker-development.md)
-* Docker deployment notes: [`docs/vg/docker-deployment.md`](docs/vg/docker-deployment.md)
-
-
-* Backend notes: [`server/README.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/README.md#fork-notes-vg-work)
-* Backend overview: [`server/docs/vg_overview.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_overview.md)
-* Backend user behavior: [`server/docs/vg_user_behavior.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_user_behavior.md)
-* Backend settings: [`server/docs/vg_settings.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_settings.md)
-* Backend implementation: [`server/docs/vg_implementation.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_implementation.md)
-* Backend installation: [`server/docs/vg_installation.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_installation.md)
-* Backend API behavior details: [`server/docs/vg_api.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_api.md)
-* Backend web-login hardening: [`server/docs/vg_web_login_hardening.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_web_login_hardening.md)
-* Backend core edits log: [`server/docs/vg_core_server_edits.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_core_server_edits.md)
-* Backend test notes: [`server/docs/vg_tests.md`](https://github.com/drguptavivek/central-backend/blob/vg-work/docs/vg_tests.md)
-
-* Frontend notes: [`client/README.md`](https://github.com/drguptavivek/central-frontend/blob/vg-work/README.md#fork-notes-vg-work)
-* Frontend customization details: [`client/docs/vg_client_changes.md`](https://github.com/drguptavivek/central-frontend/blob/vg-work/docs/vg_client_changes.md)
-* Frontend core edits log: [`client/docs/vg_core_client_edits.md`](https://github.com/drguptavivek/central-frontend/blob/vg-work/docs/vg_core_client_edits.md)
+- The user logs in every few days (session TTL) and enters a PIN on app relaunch.
+- Password is not stored on device; it is only used to obtain a short-lived token.
+- After repeated incorrect PIN attempts, the token can be deleted client-side and re-login is forced.
+- Logout is possible; on logout, blank forms are cleared but filled forms remain.
+- After re-login, forms need to be re-downloaded; existing filled forms can be uploaded as long as the current user still has server grants.
 
 
-## The server is suppoed to work with following ODK collect fork,
+Key capabilities of ODK Collect Fork:
 
-* ODK Collect fork: [`drguptavivek/collect`](https://github.com/drguptavivek/collect)
+- Short-lived tokens with proactive re-auth flows (reminders + grace period) and per-project TTL configured from the VG Central fork.
+- PIN security model: 4-digit PIN gating on foreground/resume; immediate app lock when backgrounded.
+- Brute-force protection: session wipe after 3 failed PIN attempts (clears PIN + token; password not stored on device).
+- Offline resilience: reachability checks, configurable grace period (e.g., 6h), and clock-drift detection.
+- Shared-device continuity: preserves form drafts while isolating auth state (tokens/PIN) between users.
+- Telemetry and diagnostics: queued/offline telemetry with background sync; encrypted log export for support.
+- Accessibility: WCAG 2.1 AA for auth/security screens.
+
+> Important operational change: **this workflow effectively breaks the “multi-project” use of Collect**. App users are project-scoped in Central, and the device becomes “linked” to the app user (and therefore to one project) for the duration of its session/PIN workflow.
+
+See detailed docs in the ODK Collect fork repo: https://github.com/drguptavivek/collect
 
 
-# ODK Central
+## Central Server and Client Fork Documentation
 
-![Platform](https://img.shields.io/badge/platform-Docker-blue.svg)
-[![License](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Build status](https://circleci.com/gh/getodk/central.svg?style=shield)](https://circleci.com/gh/getodk/central)
+- Technical overview (entry doc): `docs/vg/README-Technical-overview.md`
+- Docker development (VG): `docs/vg/docker-development.md`
+- Docker deployment (VG): `docs/vg/docker-deployment.md`
+- Server docs entry: `docs/vg/vg-server/vg_overview.md`
+- Server security controls: `docs/vg/vg-server/vg_security.md`
+- Client docs entry: `docs/vg/vg-client/vg_client_changes.md`
 
-Central is the [ODK](https://getodk.org/) server. It manages user accounts and permissions, stores Form definitions, and allows data collection clients like ODK Collect to connect to it for Form download and Submission upload.
 
-Our goal with Central is to create a modern server that is easy to install, easy to use, and extensible with new features and functionality both directly in the software and with the use of our REST, OpenRosa, and OData programmatic APIs.
+## Reference Screenshots showcasing the features
 
-This repository serves as an umbrella for the Central project as a whole:
+### B1. App User Management
+Automated password generation and centralized project-access control for field workers.
 
-* Operations repository for packaging the server and client into a Docker Compose application.
-* Release repository for publishing binary artifacts. Release notes can be found in this repository: see the [releases](https://github.com/getodk/central/releases).
+  <img src="docs/vg/screenshots/01_app_users_list.png" width="600" alt="App Users List">
+  <img src="docs/vg/screenshots/01_app_user_auto_gen_password.png" width="600" alt="Auto-gen Password">
 
-If you are looking for help, please take a look at the [Documentation Website](https://docs.getodk.org/central-intro/). If that doesn't solve your problem, please head over to the [ODK Forum](https://forum.getodk.org) and do a search to see if anybody else has had the same problem. If you've identified a new problem or have a feature request, please post on the forum. We prefer forum posts to GitHub issues because more of the community is on the forum.
 
-## Contributing
+### B2. Security Policies
+Project-specific security constraints, including mandatory PIN rotation and session timeout rules.
+<img src="docs/vg/screenshots/02_project_specific_app_user_settings.png" width="600" alt="Project Settings">
 
-We would love your contributions to Central. If you have thoughts or suggestions, please share them with us on the [Ideas board](https://forum.getodk.org/c/ideas) on the ODK Forum. If you wish to contribute code, you have the option of working on the Backend server ([contribution guide](https://github.com/getodk/central-backend/blob/master/CONTRIBUTING.md)), the Frontend website ([contribution guide](https://github.com/getodk/central-frontend/blob/master/CONTRIBUTING.md)), or both. To set up a development environment, first follow the [Backend instructions](https://github.com/getodk/central-backend#setting-up-a-development-environment) and then optionally the [Frontend instructions](https://github.com/getodk/central-frontend#setting-up-your-development-environment).
+### B3. Telemetry & Live Mapping
+Real-time geographic visualization of field worker health, battery status, and security events.
+<img src="docs/vg/screenshots/03_telemetry_table.png" width="600" alt="Telemetry Table">
+<img src="docs/vg/screenshots/04_telemetry_map.png" width="600" alt="Telemetry Map">
 
-### Branches
+### B4. Audit Logs
+Detailed login history and security audit trails synchronized from mobile devices.
+<img src="docs/vg/screenshots/05_logiin_history.png" width="600" alt="Login History">
 
-The `master` branch of this repository is a stable branch that users clone when they install Central in production. The `next` branch reflects ongoing development for the next version of Central. Note that this differs from the `central-backend` and `central-frontend` repositories, where `master` is the development branch. If you create a PR to this repository, please target the `next` branch unless you are only changing documentation like the readme.
+## End-to-end operational flow (Central → Collect → Central)
 
-### Services
+This is the intended day-to-day workflow for survey data managers and field staff.
 
-In addition to the Backend and the Frontend, Central deploys services:
+### 1) Create app users in Central (web UI)
 
-* Central relies on [pyxform-http](https://github.com/getodk/pyxform-http) for converting Forms from XLSForm. It generally shouldn't be needed in development but can be run locally.
-* Central relies on [Enketo](https://github.com/enketo/enketo-express) for Web Form functionality. Enketo can be run locally and configured to work with Frontend and Backend in development by following [these instructions](https://github.com/getodk/central-frontend/blob/master/docs/enketo.md).
+- Project admin/manager creates an App User with a unique username and optional phone.
+- Central generates a strong password (or admin resets it) and provides credentials for the field worker.
 
-If you want to work on the Central codebase and don't want to setup dependent services like Postgresql, Enketo, etc manually then you can run `make dev`, which will start those services as Docker containers. This setup requires a local domain name, `central.local` is a good choice. Add this name in the following places:
+<img src="docs/vg/screenshots/01_app_users_list.png" width="600" alt="Central: App Users List">
+<img src="docs/vg/screenshots/01_app_user_auto_gen_password.png" width="600" alt="Central: App User password generation">
 
-* Set `DOMAIN=central.local` in the `.env` file. 
-* Add an entry in your `/etc/hosts` file for `127.0.0.1 central.local`.
-* Create `local.json` in the central-backend directory and set the value of `default.env.domain` to `http://central.local:8989`
+### 2) Share configuration + credentials to the field worker
 
-## Operations
-This repository serves administrative functions, but it also contains the Docker code for building and running a production Central stack.
+- Share server/project configuration (QR or manual config).
+- Share credentials out-of-band (username/password). Credentials are not embedded in QR codes.
 
-To learn how to run such a stack in production, please take a look at [our DigitalOcean installation guide](https://docs.getodk.org/central-install-digital-ocean/).
+<img src="docs/vg/screenshots/collect_fork/02_QR_Config.png" width="350" alt="Collect: QR configuration">
+<img src="docs/vg/screenshots/collect_fork/01_manual_config.png" width="350" alt="Collect: manual configuration">
 
-## Node.js version
+### 3) Field worker logs in on Collect and sets a PIN
 
-We aim to use the latest [active LTS version of Node.js](https://github.com/nodejs/release/blob/main/README.md#release-schedule). This means that we generally update the major Node version used across all Central components once a year. Each time we do a Central release, we update to the latest version within the active LTS line. Node updates are done near the end of the release cycle but before regression testing.
+- User logs in using username/password to obtain a short-lived token (password is not stored on device).
+- On first-time setup, user creates a 4-digit PIN; PIN is required on app relaunch/foreground.
+
+<img src="docs/vg/screenshots/collect_fork/00_login-screen.png" width="350" alt="Collect: login">
+<img src="docs/vg/screenshots/collect_fork/03_set_pin.png" width="350" alt="Collect: set PIN">
+
+### 4) Session expiry, revalidation, and protections
+
+- Collect shows token validity and can prompt for revalidation before expiry.
+- If the token expires, Collect prompts the user to re-authenticate.
+- Brute-force protection: repeated wrong PIN attempts can wipe local auth state and force re-login.
+- Clock drift detection and permission checks help keep field work reliable.
+
+<img src="docs/vg/screenshots/collect_fork/07_Refresh_token.png" width="350" alt="Collect: refresh token / re-auth">
+<img src="docs/vg/screenshots/collect_fork/06_Reenter_pin.png" width="350" alt="Collect: re-enter PIN">
+<img src="docs/vg/screenshots/collect_fork/08_date_drift_detection.png" width="350" alt="Collect: clock drift detection">
+<img src="docs/vg/screenshots/collect_fork/11_permissions_check.png" width="350" alt="Collect: permissions check">
+
+### 5) Telemetry and audit trails in Central
+
+- Collect can submit device/security telemetry; Central can list it and visualize it on a map.
+- Central records audit events for app-user lifecycle and authentication-related activity.
+
+<img src="docs/vg/screenshots/03_telemetry_table.png" width="600" alt="Central: telemetry table">
+<img src="docs/vg/screenshots/04_telemetry_map.png" width="600" alt="Central: telemetry map">
+<img src="docs/vg/screenshots/05_logiin_history.png" width="600" alt="Central: login history / audit logs">
+
+## Future ideas (not implemented)
+
+- Device validation by project manager scanning a device QR
+
+## Implemented (high level)
+
+- Show number of active sessions/devices for an app user in Central
+- Show token validity timer + revalidation notifications in Collect
+
 
 ## License
 

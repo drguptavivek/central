@@ -1,11 +1,13 @@
 # VG App User Auth - Implementation
 
+> **Last Updated**: 2026-01-02
+
 This document lists the key implementation points and modified core behavior.
 
 ## Tables
 
 - `vg_field_key_auth`: One-to-one with `field_keys` by `actorId`. Stores username, password hash, phone, and active flag.
-- `vg_settings`: Stores session TTL, cap, and lockout defaults.
+- `vg_settings`: Stores global settings (session TTL/cap, app-user lockout config, `admin_pw`, and optional web-user lockout duration).
 - `vg_project_settings`: Stores project-level overrides for session TTL/cap and lockout settings.
 - `vg_app_user_login_attempts`: Stores login attempts for lockout enforcement.
 - `vg_app_user_lockouts`: Stores active lockout windows.
@@ -18,8 +20,9 @@ This document lists the key implementation points and modified core behavior.
 - `server/lib/domain/vg-telemetry.js`: Validates and records app-user telemetry payloads.
 - `server/lib/model/query/vg-app-user-auth.js`: Data access for VG auth, settings lookup, and login attempt tracking.
 - `server/lib/model/query/vg-telemetry.js`: Data access for telemetry insert and filtered listing.
-- `server/lib/resources/vg-app-user-auth.js`: Exposes system settings endpoints for TTL and cap.
+- `server/lib/resources/vg-app-user-auth.js`: Exposes system + project app-user settings endpoints for TTL/cap/`admin_pw`, and admin lockout clear endpoint.
 - `server/lib/resources/vg-telemetry.js`: Exposes app-user telemetry capture and admin listing endpoints.
+- `server/lib/resources/sessions.js`: Implements web-user login hardening (lockouts, audit, response headers); reads `vg_web_user_lock_duration_minutes` from `vg_settings`.
 
 ## File-by-file details
 
@@ -63,9 +66,10 @@ This document lists the key implementation points and modified core behavior.
 - `POST /projects/:projectId/app-users/:id/active` -> `vgAppUserAuth.setActive(active)`
 - `GET /projects/:projectId/app-users/settings` -> `VgAppUserAuth.getSettingWithProjectOverride*()`
 - `PUT /projects/:projectId/app-users/settings` -> `VgAppUserAuth.upsertProjectSetting()`
+- `POST /system/app-users/lockouts/clear` -> `vgAppUserAuth.clearLockout()`
 - `POST /projects/:projectId/app-users/telemetry` -> `vgTelemetry.recordTelemetry()`
 - `GET /system/app-users/telemetry` -> `VgTelemetry.getTelemetry()`
-- `GET /system/settings` -> `VgAppUserAuth.getSessionTtlDays()` + `getSessionCap()`
+- `GET /system/settings` -> `VgAppUserAuth.getSessionTtlDays()` + `getSessionCap()` + `getAdminPw()`
 - `PUT /system/settings` -> `VgAppUserAuth.upsertSetting()`
 
 ## Modified upstream behavior
@@ -75,7 +79,7 @@ This document lists the key implementation points and modified core behavior.
 
 ## Session handling
 
-- Session TTL is loaded from `vg_settings` (`vg_app_user_session_ttl_days`) when issuing tokens.
+- Session TTL is loaded from `vg_settings` with optional project override (`vg_app_user_session_ttl_days`) when issuing tokens.
 - No sliding refresh is applied; expiry is fixed at issuance.
 
 ## Audit events
@@ -92,6 +96,7 @@ VG emits vg-prefixed actions for creation, login success/failure, password chang
 - Lockouts are stored in `vg_app_user_lockouts` with project overrides in `vg_project_settings`.
 - Session TTL and cap also support project overrides via `vg_project_settings`.
 - Lockouts are enforced in `server/lib/domain/vg-app-user-auth.js` using `getActiveLockout()` and `getLockStatus()` from `server/lib/model/query/vg-app-user-auth.js`.
+- Web-user login lockouts for `/v1/sessions` are implemented in `server/lib/resources/sessions.js` and use a fixed threshold/window with a configurable duration from `vg_settings` (`vg_web_user_lock_duration_minutes`).
 
 ## Operational command (Docker)
 

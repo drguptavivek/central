@@ -1,6 +1,17 @@
 # VG App-User Auth API
 
+> **Last Updated**: 2026-01-02
+
 Short-lived, password-based auth for Collect-style app users tied to projects. Tokens are bearer-only (no cookies) and expire based on `vg_app_user_session_ttl_days` (default 3 days) stored in `vg_settings`, with optional per-project overrides.
+
+## Related docs
+
+- Overview: [vg_overview.md](vg_overview.md)
+- Security controls: [vg_security.md](vg_security.md)
+- Settings: [vg_settings.md](vg_settings.md)
+- User behavior: [vg_user_behavior.md](vg_user_behavior.md)
+- Implementation: [vg_implementation.md](vg_implementation.md)
+- Tests: [vg_tests.md](vg_tests.md)
 
 ## Frontend quick reference
 - No long-lived tokens are ever returned from create/list endpoints; only `/login` returns a short-lived bearer token.
@@ -16,11 +27,10 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 - Rejects anything that does not meet all criteria
 
 ## Route docs
-- `docs/vg/vg-server/routes/app-users.md` (create/list/update/delete)
-- `docs/vg/vg-server/routes/app-user-auth.md` (login, change/reset/revoke/active)
-- `docs/vg/vg-server/routes/app-user-sessions.md` (session history + revoke)
-- `docs/vg/vg-server/routes/system-settings.md` (get/update default session settings)
-- `docs/vg/vg-server/routes/app-user-auth.md` (project app-user settings endpoints)
-- `docs/vg/vg-server/routes/telemetry.md` (app user telemetry capture)
-- `docs/vg/vg-server/routes/lockouts.md` (lockout clear)
-- `docs/vg/vg-server/routes/web-user-hardening.md` (web user `/v1/sessions` hardening)
+- [routes/app-users.md](routes/app-users.md) (create/list/update/delete)
+- [routes/app-user-auth.md](routes/app-user-auth.md) (login, change/reset/revoke/active, project app-user settings)
+- [routes/app-user-sessions.md](routes/app-user-sessions.md) (session history + revoke)
+- [routes/system-settings.md](routes/system-settings.md) (get/update default session settings)
+- [routes/telemetry.md](routes/telemetry.md) (app user telemetry capture)
+- [routes/lockouts.md](routes/lockouts.md) (lockout clear)
+- [routes/web-user-hardening.md](routes/web-user-hardening.md) (web user `/v1/sessions` hardening)

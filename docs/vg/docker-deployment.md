@@ -1,5 +1,7 @@
 # Docker deployment (VG)
 
+> **Last Updated**: 2026-01-02
+
 This doc captures the “standard” docker deployment shape for this `central` meta repo.
 
 ## Images
@@ -40,4 +42,3 @@ Common patterns:
 docker compose logs -f --tail=100 nginx service
 curl -kI "https://${DOMAIN}/version.txt"
 ```
-

@@ -1,10 +1,12 @@
 # VG App User Auth - Overview
 
+> **Last Updated**: 2026-01-02
+
 ## Scope
 
-VG introduces short-lived, password-based authentication for app users (field keys). It replaces long-lived token QR credentials with login-issued bearer tokens and adds server-side session controls.
+This fork introduces short-lived, password-based authentication for app users (field keys). It replaces long-lived token QR credentials with login-issued bearer tokens and adds server-side session controls.
 
-App-user auth changes are the primary focus; VG also hardens web user login behavior for `/v1/sessions` (see related docs).
+App-user auth changes are the primary focus; This fork also hardens web user login behavior for `/v1/sessions` (see related docs).
 
 ## Key changes (behavior)
 
@@ -27,10 +29,12 @@ App-user auth changes are the primary focus; VG also hardens web user login beha
 
 ## Related docs
 
-- User behavior: `server/docs/vg_user_behavior.md`
-- Settings: `server/docs/vg_settings.md`
-- API: `server/docs/vg_api.md`
-- Implementation: `server/docs/vg_implementation.md`
-- Tests: `server/docs/vg_tests.md`
-- Core edits: `server/docs/vg_core_server_edits.md`
-- Web login hardening: `server/docs/routes/web-user-hardening.md`
+- User behavior: [vg_user_behavior.md](vg_user_behavior.md)
+- Security controls: [vg_security.md](vg_security.md)
+- Settings: [vg_settings.md](vg_settings.md)
+- API: [vg_api.md](vg_api.md)
+- Implementation: [vg_implementation.md](vg_implementation.md)
+- Installation: [vg_installation.md](vg_installation.md)
+- Tests: [vg_tests.md](vg_tests.md)
+- Core edits: [vg_core_server_edits.md](vg_core_server_edits.md)
+- Web login hardening: [vg_web_login_hardening.md](vg_web_login_hardening.md)

@@ -1,5 +1,7 @@
 # Docker development (VG)
 
+> **Last Updated**: 2026-01-02
+
 This repo uses `docker compose` with layered config files for local development.
 
 ## Files
@@ -44,4 +46,3 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central down
 docker volume ls | rg 'central' || true
 ```
-

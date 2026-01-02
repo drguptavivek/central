@@ -1,5 +1,7 @@
 # VG: Web user login hardening
 
+> **Last Updated**: 2026-01-01
+
 Scope: `/v1/sessions` (web user login).
 
 ## Behavior

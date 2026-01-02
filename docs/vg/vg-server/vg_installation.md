@@ -1,5 +1,7 @@
 # VG App User Auth - Installation
 
+> **Last Updated**: 2026-01-02
+
 This document lists the steps to set up VG-specific server changes for app-user auth.
 
 ## Prerequisites
@@ -13,7 +15,7 @@ This document lists the steps to set up VG-specific server changes for app-user 
 Run the VG SQL migration to create the new tables/columns and seed defaults:
 
 ```sh
-docker exec -i central-postgres14-1 psql -U odk -d odk < docs/sql/vg_app_user_auth.sql
+docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 ```
 
 If you're upgrading an existing VG install, re-run the same SQL to add new columns
@@ -93,11 +95,11 @@ Using the Central web UI (Project > App Users), create an app user with:
 - display name (full name)
 - optional phone
 
-Password is auto-generated on create. Use the admin reset endpoint if you need to set a specific password.
+Set a password on create (or reset it after creation) via the admin reset endpoint if needed.
 
 ## Step 8: Verify VG app-user auth
 
-- Create an app user (admin/manager) with `username` and `password`.
+- Create an app user (admin/manager) with `username` and a password.
 - Log in via `POST /projects/:projectId/app-users/login` to get a short-lived token.
 - Confirm token expiry and session cap behavior.
 
@@ -119,6 +121,14 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 
 ```sh
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-telemetry.js'
+```
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-webusers.js'
+```
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/domain/vg-app-user-auth.js'
 ```
 
 ## Notes

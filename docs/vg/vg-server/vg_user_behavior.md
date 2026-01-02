@@ -1,5 +1,7 @@
 # VG App User Auth - User Behavior
 
+> **Last Updated**: 2026-01-02
+
 This document describes all user-visible behavior changes introduced by VG app-user auth.
 
 ## Roles and permissions
@@ -21,7 +23,7 @@ This document describes all user-visible behavior changes introduced by VG app-u
 ## App user creation and updates
 
 - Creation requires `username` and `password` (in addition to display name).
-- Updates allow display name, phone, and active flag changes; password changes use the dedicated endpoint.
+- Updates allow display name and phone changes; activation/deactivation uses the dedicated endpoint; password changes use the dedicated endpoint.
 - Create/list responses never return long-lived tokens (`token` is always null in listings).
 
 ## Session cap behavior
@@ -41,8 +43,7 @@ This document describes all user-visible behavior changes introduced by VG app-u
 - Attempts are tracked server-side for lockout enforcement.
 - Lockouts are recorded in `vg_app_user_lockouts`.
 - Project mismatch logins count as failed attempts for lockout tracking.
-- To clear a lockout, delete recent failed attempts for the username+IP or backdate them beyond the lock window.
-- Admins can clear lockouts via `POST /system/app-users/lockouts/clear`.
+- Admins can clear app-user lockouts via `POST /system/app-users/lockouts/clear` (optionally scoped by IP).
 
 ## Activation and revocation
 
@@ -62,6 +63,6 @@ This document describes all user-visible behavior changes introduced by VG app-u
 ## App user fields
 
 - App users now include `username` and optional `phone`.
-- Username is required, normalized to lowercase, and cannot be changed after creation.
+- Username is required, normalized to lowercase, and treated as immutable after creation.
 - Phone is optional, trimmed, and capped at 25 characters.
 - New app users are active by default unless explicitly deactivated.

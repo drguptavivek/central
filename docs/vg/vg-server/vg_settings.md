@@ -1,18 +1,22 @@
 # VG App User Auth - Settings
 
+> **Last Updated**: 2026-01-02
+
 VG stores session configuration in `vg_settings`.
 
 ## Keys and defaults
 
-- `vg_app_user_session_ttl_days` (default: 3)
-- `vg_app_user_session_cap` (default: 3)
-- `vg_app_user_lock_max_failures` (default: 5)
-- `vg_app_user_lock_window_minutes` (default: 5)
-- `vg_app_user_lock_duration_minutes` (default: 10)
-- `vg_web_user_lock_duration_minutes` (default: 10)
-- `admin_pw` (default: `'vg_custom'`)
+- **Seeded by migration** (`server/docs/sql/vg_app_user_auth.sql`):
+  - `vg_app_user_session_ttl_days` (default: 3)
+  - `vg_app_user_session_cap` (default: 3)
+  - `vg_app_user_lock_max_failures` (default: 5)
+  - `vg_app_user_lock_window_minutes` (default: 5)
+  - `vg_app_user_lock_duration_minutes` (default: 10)
+  - `admin_pw` (default: `'vg_custom'`)
+- **Runtime default only** (not seeded):
+  - `vg_web_user_lock_duration_minutes` (default fallback: 10)
 
-Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
+`vg_web_user_lock_duration_minutes` is read from `vg_settings` if present and a positive integer; otherwise the server falls back to `10`.
 
 ## Where settings apply
 
@@ -30,21 +34,28 @@ Defaults are seeded by `server/docs/sql/vg_app_user_auth.sql`.
 
 ## Update paths
 
-- API: `GET /system/settings` returns current default values; `PUT /system/settings` updates them.
-- DB: update `vg_settings` directly if needed.
-  - Project overrides: update `vg_project_settings` for a specific `projectId` (TTL, cap, lockouts, admin_pw).
+- API:
+  - `GET /system/settings` returns current values for `vg_app_user_session_ttl_days`, `vg_app_user_session_cap`, `admin_pw`.
+  - `PUT /system/settings` updates `vg_app_user_session_ttl_days`, `vg_app_user_session_cap`, `admin_pw`.
+  - `GET /projects/:projectId/app-users/settings` returns project-effective values for `vg_app_user_session_ttl_days`, `vg_app_user_session_cap`, `admin_pw`.
+  - `PUT /projects/:projectId/app-users/settings` upserts project overrides for `vg_app_user_session_ttl_days`, `vg_app_user_session_cap`, `admin_pw`.
+  - `POST /system/app-users/lockouts/clear` clears app-user login lockouts (does not change configuration values).
+- DB:
+  - Update `vg_settings` directly for global values (including `vg_web_user_lock_duration_minutes`).
+  - Update `vg_project_settings` directly for project overrides of app-user settings (TTL/cap/admin_pw) and app-user lockout settings.
+    - Note: app-user lockout settings do not currently have a public API.
 
 ## Validation
 
-- **TTL & Cap**: Stored as strings but parsed as numbers server-side.
-  - Must be positive integers (TTL in days, cap in number of sessions).
-  - DB constraint enforces positive integer values.
-- **Lock settings**: Stored as strings but parsed as numbers server-side.
-  - Must be positive integers (max failures, window minutes, duration minutes).
-  - Project-level overrides enforce positive integers in `vg_project_settings`.
+- **TTL & Cap**: Stored as strings but parsed as positive integers server-side (TTL in days, cap in number of sessions).
+  - DB constraints enforce positive integers for these keys in `vg_settings` and `vg_project_settings`.
+- **Lock settings**: Stored as strings but parsed as positive integers server-side (max failures, window minutes, duration minutes).
+  - DB constraints enforce positive integers for these keys in `vg_settings` and `vg_project_settings`.
+- **Web user lock duration**: Stored as string but parsed as a positive integer server-side.
+  - No DB constraint currently enforces this key; invalid/missing values fall back to `10`.
 - **admin_pw**: Stored as plain text string.
-  - Must be non-empty.
   - Max length 72 characters.
+  - API rejects empty/blank values; DB updates can bypass this, so keep it non-empty.
   - No complexity requirements (any string allowed).
   - No encryption (stored plain text for ODK Collect QR inclusion).
 
@@ -87,3 +98,6 @@ The payload is:
 
 - `GET /system/settings` requires `config.read`.
 - `PUT /system/settings` requires `config.set`.
+- `GET /projects/:projectId/app-users/settings` requires `project.read`.
+- `PUT /projects/:projectId/app-users/settings` requires `project.update`.
+- `POST /system/app-users/lockouts/clear` requires `config.set`.
