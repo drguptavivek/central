@@ -201,6 +201,12 @@ server {
     # General API rate limit; allows short bursts for nightly peaks.
     # Adjust burst to absorb spikes; add `nodelay` to drop instead of queue.
     limit_req zone=api_limit burst=1000 nodelay;
+
+    # CRS defaults are not compatible with Central's API surface (PATCH/PUT/DELETE),
+    # and anomaly-score blocking can false-positive during normal UI operations.
+    # Disable only the specific blocking rules for the API prefix.
+    modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
+
     proxy_hide_header Content-Security-Policy-Report-Only;
     add_header Content-Security-Policy-Report-Only "default-src 'none'; report-uri /csp-report";
 
