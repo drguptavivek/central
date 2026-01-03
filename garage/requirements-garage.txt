@@ -1,0 +1,8 @@
+# Requirements for setup-garage.py
+# Install with: pip install -r scripts/requirements-garage.txt
+
+# Core dependencies
+pyyaml>=6.0
+
+# Optional (for better interactive prompts)
+questionary>=2.0.0

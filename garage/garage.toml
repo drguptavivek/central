@@ -1,0 +1,18 @@
+metadata_dir = "/data/meta"
+data_dir = "/data/data"
+db_engine = "lmdb"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_secret = "a3db2a287d48759261e329340377a4fb6fefe772ff2b7196cfecc2105f7d7298"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+root_domain = ".s3.central.local"
+
+[s3_web]
+bind_addr = "[::]:3903"
+root_domain = ".web.central.local"
+index = "index.html"

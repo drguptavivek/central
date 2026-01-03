@@ -116,7 +116,10 @@ services:
     volumes:
       - ./files/local/customssl/:/etc/customssl/live/local/:ro
       - ./files/nginx/odk.conf.template:/usr/share/odk/nginx/odk.conf.template:ro
+      - ./files/nginx/s3.conf.template:/usr/share/odk/nginx/s3.conf.template:ro
       - ./files/nginx/client-config.json.template:/usr/share/odk/nginx/client-config.json.template:ro
+      # Optional: Pre-generated S3 config (run: make nginx-s3-conf or ./scripts/generate-s3-conf.sh)
+      - ./files/nginx/s3.conf:/etc/nginx/conf.d/s3.conf:ro
       # Optional overrides/persistence:
       - ./crs/crs-setup.conf.example:/etc/modsecurity/crs/crs-setup.conf:ro
       - ./crs/rules:/etc/modsecurity/crs/rules:ro

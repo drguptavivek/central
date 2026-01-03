@@ -83,6 +83,13 @@ CERT_DOMAIN=$( [ "$SSL_TYPE" = "customssl" ] && echo "local" || echo "$DOMAIN") 
   < /usr/share/odk/nginx/odk.conf.template \
   > /etc/nginx/conf.d/odk.conf
 
+
+# Generate S3 API config for Garage
+CERT_DOMAIN=$( [ "$SSL_TYPE" = "customssl" ] && echo "local" || echo "$DOMAIN") \
+/scripts/envsub.awk \
+  < /usr/share/odk/nginx/s3.conf.template \
+  > /etc/nginx/conf.d/s3.conf
+
 if [ "$SSL_TYPE" = "letsencrypt" ]; then
   echo "starting nginx for letsencrypt..."
   /bin/bash /scripts/start_nginx_certbot.sh
