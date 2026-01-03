@@ -1,0 +1,21 @@
+
+services:
+  garage:
+    image: dxflrs/garage:v2.1.0
+    container_name: odk-garage
+    command:
+    - ./garage
+    - server
+    ports:
+    - 127.0.0.1:3900:3900
+    - 127.0.0.1:3903:3903
+    volumes:
+    - garage_data:/data
+    - ./garage/garage.toml:/etc/garage.toml:ro
+    environment:
+      RUST_LOG: info
+    networks:
+    - default
+volumes:
+  garage_data: {}
+networks: {}
