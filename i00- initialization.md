@@ -92,6 +92,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central run --rm service npm install
 
+
 # Apply DB migration
 docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 
