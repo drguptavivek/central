@@ -17,16 +17,16 @@ This is a VG fork of the upstream ODK Central meta repo (`client/` + `server/` s
 
 ### For First-Time Users
 
-1. **[GETTING-STARTED.md](GETTING-STARTED.md)** ← **START HERE**
+1. **[GETTING-STARTED.md](./docs/vg/GETTING-STARTED.md)** ← **START HERE**
    - 3-step quick start guide
    - Interactive setup scripts
    - Common scenarios with examples
 
-2. **[GETTING-STARTED-PRODUCTION.md](GETTING-STARTED-PRODUCTION.md)**
+2. **[GETTING-STARTED-PRODUCTION.md](./docs/vg/GETTING-STARTED-PRODUCTION.md)**
    - Production/self-hosting quickstart (upstream SSL)
    - Minimal steps: script → `.env` → docker commands → optional S3
 
-3. **[GETTING-STARTED-DEVELOPMENT.md](GETTING-STARTED-DEVELOPMENT.md)**
+3. **[GETTING-STARTED-DEVELOPMENT.md](./docs/vg/GETTING-STARTED-DEVELOPMENT.md)**
    - Local development quickstart (dev profile + `client-dev`)
 
 
