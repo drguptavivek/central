@@ -1,5 +1,7 @@
 # ODK Central VG Fork - Getting Started
 
+For **production/self-hosting**, see `docs/vg/GETTING-STARTED-PRODUCTION.md`.
+
 ## Quick Start (3 Steps)
 
 ### 1. Initialize Configuration
@@ -71,6 +73,7 @@ API:     https://central.local/v1
 - `docker-compose-garage.yml` - Garage overlay (if S3=Garage)
 - `garage/garage.toml` - Garage config (if S3=Garage)
 - `garage/storage.conf` - Garage capacity (if S3=Garage)
+- `*.backup.YYYYMMDD-HHMMSS` - If a generated file already exists and would change, the script writes a timestamped backup first.
 
 **Run:**
 ```bash
@@ -392,4 +395,4 @@ To understand how a setting is derived, see:
 
 ---
 
-**Happy deploying!** 🚀
+**Happy deploying!** 

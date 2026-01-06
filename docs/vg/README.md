@@ -13,14 +13,21 @@ Complete documentation for the VG (Vivek Gupta) fork of ODK Central with integra
    - Interactive setup scripts
    - Common scenarios with examples
 
+2. **[GETTING-STARTED-PRODUCTION.md](GETTING-STARTED-PRODUCTION.md)**
+   - Production/self-hosting quickstart (upstream SSL)
+   - Minimal steps: script → `.env` → docker commands → optional S3
+
+3. **[GETTING-STARTED-DEVELOPMENT.md](GETTING-STARTED-DEVELOPMENT.md)**
+   - Local development quickstart (dev profile + `client-dev`)
+
 ### For Understanding Configuration
 
-2. **[odk-routing-decision-points.md](odk-routing-decision-points.md)**
+3. **[odk-routing-decision-points.md](odk-routing-decision-points.md)**
    - The 4 key decisions explained
    - How configuration auto-derives
    - Decision matrix with all combinations
 
-3. **[odk-routing-rules.md](odk-routing-rules.md)**
+4. **[odk-routing-rules.md](odk-routing-rules.md)**
    - 10 critical routing rules
    - Upstream proxy configuration
    - S3 (Garage vs External) constraints
@@ -28,7 +35,7 @@ Complete documentation for the VG (Vivek Gupta) fork of ODK Central with integra
 
 ### For Understanding Secrets & Environment
 
-4. **[odk-secrets-env.md](odk-secrets-env.md)**
+5. **[odk-secrets-env.md](odk-secrets-env.md)**
    - How .env maps to containers
    - Build time vs runtime configuration
    - Secret lifecycle and rotation
@@ -36,7 +43,7 @@ Complete documentation for the VG (Vivek Gupta) fork of ODK Central with integra
 
 ### For Deep Understanding
 
-5. **[ARCHITECTURE.md](ARCHITECTURE.md)**
+6. **[ARCHITECTURE.md](ARCHITECTURE.md)**
    - Complete system architecture
    - Service dependencies and startup order
    - Network topology
@@ -50,6 +57,7 @@ Complete documentation for the VG (Vivek Gupta) fork of ODK Central with integra
 | Document | Purpose | For Whom |
 |----------|---------|----------|
 | **GETTING-STARTED.md** | Quick start, examples, troubleshooting | Everyone |
+| **GETTING-STARTED-PRODUCTION.md** | Production/self-hosting quickstart (upstream SSL) | Operators |
 | **odk-routing-decision-points.md** | Configuration decision matrix | Operators, Architects |
 | **odk-routing-rules.md** | Routing constraints, SSL, S3 | DevOps, Network Engineers |
 | **odk-secrets-env.md** | Secret management, env vars | Operators, Security |
@@ -100,6 +108,9 @@ docker compose logs -f service
 
 **Set up ODK Central for the first time**
 → Read: [GETTING-STARTED.md](GETTING-STARTED.md)
+
+**Set up production/self-hosting (simple path)**
+→ Read: [GETTING-STARTED-PRODUCTION.md](GETTING-STARTED-PRODUCTION.md)
 
 **Choose between PostgreSQL vs Hosted Database**
 → Read: [odk-routing-decision-points.md](odk-routing-decision-points.md#from-postgresql-instance)
@@ -283,7 +294,7 @@ A: No! Change `.env` and restart the service container. See [odk-secrets-env.md]
 A: Garage is a local container, external S3 is AWS/MinIO. See [odk-routing-rules.md](odk-routing-rules.md#3-garage-vs-external-s3).
 
 **Q: Can I use this in production?**
-A: Yes! See [GETTING-STARTED.md](GETTING-STARTED.md#scenario-3-production-single-server-lets-encrypt) for production setup.
+A: Yes! See [GETTING-STARTED-PRODUCTION.md](GETTING-STARTED-PRODUCTION.md) for the production quickstart.
 
 **Q: Can I put this behind a corporate proxy?**
 A: Yes! Choose `SSL_TYPE=upstream`. See [odk-routing-rules.md](odk-routing-rules.md#9-standard-vs-upstream-ssl-mode).

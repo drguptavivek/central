@@ -27,6 +27,8 @@ ok() { echo >&2 -e "${GREEN}✓${RESET} $*"; }
 warn() { echo >&2 -e "${YELLOW}⚠${RESET} $*"; }
 die() { echo >&2 -e "${RED}✗${RESET} $*"; exit 1; }
 
+RUN_TS="$(date +%Y%m%d-%H%M%S)"
+
 prompt_choice() {
   local prompt_text="$1"
   local default_idx="$2"
@@ -115,12 +117,26 @@ append_env_block() {
   } >> "$file"
 }
 
-write_garage_toml() {
+write_file_with_backup_if_changed() {
+  local dest="$1"
+  local tmp="$2"
+  local backup="${dest}.backup.${RUN_TS}"
+
+  mkdir -p "$(dirname "$dest")"
+
+  if [ -f "$dest" ] && ! cmp -s "$dest" "$tmp"; then
+    cp "$dest" "$backup"
+    warn "Backed up existing ${dest} to ${backup}"
+  fi
+
+  mv "$tmp" "$dest"
+}
+
+render_garage_toml() {
   local domain="$1"
   local rpc_secret="$2"
 
-  mkdir -p garage
-  cat > garage/garage.toml <<EOF
+  cat <<EOF
 metadata_dir = "/data/meta"
 data_dir = "/data/data"
 db_engine = "lmdb"
@@ -142,10 +158,10 @@ index = "index.html"
 EOF
 }
 
-write_garage_compose_overlay() {
+render_garage_compose_overlay() {
   local include_extra_hosts="$1" # true/false
 
-  cat > docker-compose-garage.yml <<'EOF'
+  cat <<'EOF'
 services:
   garage:
     image: dxflrs/garage:v2.1.0
@@ -163,7 +179,7 @@ services:
 EOF
 
   if [ "$include_extra_hosts" = "true" ]; then
-    cat >> docker-compose-garage.yml <<'EOF'
+    cat <<'EOF'
 
   service:
     extra_hosts:
@@ -171,7 +187,7 @@ EOF
 EOF
   fi
 
-  cat >> docker-compose-garage.yml <<'EOF'
+  cat <<'EOF'
 
 volumes:
   garage_data: {}
@@ -272,9 +288,7 @@ backup_env() {
   if [ ! -f ".env" ]; then
     return 0
   fi
-  local ts
-  ts="$(date +%Y%m%d-%H%M%S)"
-  local backup=".env.backup.${ts}"
+  local backup=".env.backup.${RUN_TS}"
   cp .env "$backup"
   warn "Backed up existing .env to ${backup}"
 }
@@ -354,18 +368,23 @@ PY
     fi
   fi
 
-  write_garage_toml "$DOMAIN" "$rpc_secret"
+  garage_toml_tmp="$(mktemp)"
+  render_garage_toml "$DOMAIN" "$rpc_secret" > "$garage_toml_tmp"
+  write_file_with_backup_if_changed "garage/garage.toml" "$garage_toml_tmp"
 
-  mkdir -p garage
-  echo "${GARAGE_CAPACITY}" > garage/storage.conf
+  storage_tmp="$(mktemp)"
+  printf '%s\n' "${GARAGE_CAPACITY}" > "$storage_tmp"
+  write_file_with_backup_if_changed "garage/storage.conf" "$storage_tmp"
 
   include_extra_hosts="false"
   case "$DOMAIN" in
     *.local|localhost) include_extra_hosts="true" ;;
   esac
-  write_garage_compose_overlay "$include_extra_hosts"
+  garage_compose_tmp="$(mktemp)"
+  render_garage_compose_overlay "$include_extra_hosts" > "$garage_compose_tmp"
+  write_file_with_backup_if_changed "docker-compose-garage.yml" "$garage_compose_tmp"
 
-  ok "Wrote garage/garage.toml and docker-compose-garage.yml"
+  ok "Wrote Garage config (with backups if changed)"
 fi
 
 log ""
