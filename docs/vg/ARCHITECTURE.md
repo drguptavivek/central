@@ -645,7 +645,8 @@ Application starts with config
 
 2. **Garage S3 Integration**
    - Garage container (dxflrs/garage:v2.1.0)
-   - setup-garage.py script
+   - scripts/init-odk.sh (generates Garage config + overlay)
+   - scripts/add-s3.sh (bootstraps layout/key/bucket)
    - S3 nginx routing configuration
 
 3. **App User Authentication**

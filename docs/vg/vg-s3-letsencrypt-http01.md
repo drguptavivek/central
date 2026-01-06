@@ -86,32 +86,17 @@ S3_BUCKET_NAME=odk-central
 
 ---
 
-## Step 2: Regenerate S3 Nginx Config
+## Step 2: Restart Nginx to Pick Up S3 Routing
 
-Update nginx S3 config with new domain:
+The nginx container generates `/etc/nginx/conf.d/s3.conf` from `files/nginx/s3.conf.template` at startup.
 
 ```bash
-bash scripts/generate-s3-conf.sh
+docker compose restart nginx
 ```
 
-**Output:**
-```
-✓ Generated files/nginx/s3.conf
-  DOMAIN=central.example.com
-  SSL_TYPE=letsencrypt
-  CERT_DOMAIN=central.example.com
-  S3_BUCKET_NAME=odk-central
-
-S3 API endpoint: odk-central.s3.central.example.com
-S3 Web UI:       web.central.example.com
-
-Restart nginx to apply:
-  docker compose restart nginx
-```
-
-**Verify s3.conf:**
+**Verify s3.conf inside the container:**
 ```bash
-grep "server_name\|ssl_certificate" files/nginx/s3.conf
+docker compose exec nginx sh -lc 'grep "server_name\\|ssl_certificate" /etc/nginx/conf.d/s3.conf'
 ```
 
 Should show:
@@ -291,12 +276,7 @@ If you're migrating from self-signed certificates:
    EXTRA_SERVER_NAME=odk-central.s3.central.example.com web.central.example.com
    ```
 
-2. **Regenerate configs:**
-   ```bash
-   bash scripts/generate-s3-conf.sh
-   ```
-
-3. **Restart services:**
+2. **Restart services:**
    ```bash
    docker compose restart nginx service
    ```
@@ -338,7 +318,6 @@ If you need **wildcard certificates** (e.g., `*.s3.central.example.com`):
 ## Related Documentation
 
 - **Garage S3 Quickstart**: `garage/QUICKSTART.md`
-- **Garage Setup Guide**: `garage/README-GARAGE-SETUP.md`
 - **Let's Encrypt Docs**: https://letsencrypt.org/docs/challenge-types/
 - **ODK Central SSL**: https://docs.getodk.org/central-install-digital-ocean/#ssl-certificate
 
@@ -350,9 +329,8 @@ If you need **wildcard certificates** (e.g., `*.s3.central.example.com`):
 
 1. Configure DNS A records (3 domains)
 2. Set `SSL_TYPE=letsencrypt` and `EXTRA_SERVER_NAME` in `.env`
-3. Regenerate s3.conf: `bash scripts/generate-s3-conf.sh`
-4. Restart services: `docker compose restart nginx service`
-5. Verify certificate covers all 3 domains
+3. Restart services: `docker compose restart nginx service`
+4. Verify certificate covers all 3 domains
 
 **Result:** Single Let's Encrypt certificate covering:
 - `central.example.com` (ODK Central)

@@ -241,14 +241,11 @@ Base services (always):
 - mail
 - secrets
 
-+ If Database=Local:
++ If Database=Container (default):
   - postgres14
 
 + If S3=Garage:
   - garage
-
-+ If Environment=Dev and client/ exists:
-  - client-dev
 ```
 
 ---
@@ -256,17 +253,19 @@ Base services (always):
 ## Init Script Selection (Auto-Derived)
 
 ```
-if [ Environment = "Dev" ]; then
-  bash scripts/init-dev.sh
-elif [ Environment = "Prod" ]; then
-  bash scripts/init-prod.sh
-fi
+# Use the single interactive initializer:
+./scripts/init-odk.sh
 
-# Script auto-detects from .env:
-# - SSL_TYPE → SSL setup
-# - S3_* vars → Garage setup or skip
-# - DB_HOST → External DB or local postgres14
-# - HTTP_PORT → Standard or upstream mode
+# Then build + start:
+docker compose build
+docker compose up -d
+
+# If S3=Garage:
+# - Start garage + bootstrap bucket/key:
+#   docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage
+#   ./scripts/add-s3.sh
+# - Start stack with overlay:
+#   docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d
 ```
 
 ---

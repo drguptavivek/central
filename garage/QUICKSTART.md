@@ -13,33 +13,32 @@
 
 ---
 
-## 1. Run Setup Script
+## 1. Generate Configs (Init)
 
 ```bash
 # From ODK Central root directory
-uv run --with pyyaml --with questionary python garage/setup-garage.py
+./scripts/init-odk.sh
 ```
 
-**What it does:**
-- Detects SSL setup (selfsign/letsencrypt/customssl)
-- Generates `garage/garage.toml` with S3/Web domains
-- Creates S3 bucket `odk-central` and credentials
-- Updates `.env` with `S3_*` variables
-- Generates `files/nginx/s3.conf` for nginx
+Select:
+- **S3 blob storage**: `Garage (local S3 - optional)`
+
+This generates:
+- `.env` (sets `VG_GARAGE_ENABLED=true`, `S3_SERVER`, `S3_BUCKET_NAME`, and empty `S3_ACCESS_KEY/S3_SECRET_KEY`)
+- `garage/garage.toml` (gitignored; contains `rpc_secret`)
+- `garage/storage.conf` (capacity for layout)
+- `docker-compose-garage.yml` (overlay)
 
 ---
 
-## 2. Start Garage & Restart Services
+## 2. Start Garage + Bootstrap Bucket/Key
 
 ```bash
-# Start Garage
-docker compose -f docker-compose-garage.yml up -d
+# Start Garage only
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage
 
-# Restart nginx to load S3 config
-docker compose restart nginx
-
-# Restart service to pick up S3 env vars
-docker compose restart service
+# Bootstrap (configures layout, creates bucket/key, updates .env)
+./scripts/add-s3.sh
 ```
 
 ---
@@ -83,27 +82,17 @@ EXTRA_SERVER_NAME=odk-central.s3.central.local web.central.local
 **Check environment:**
 ```bash
 grep ^S3_ .env
-# Expected:
-# S3_SERVER=https://s3.central.local
-# S3_ACCESS_KEY=GK...
-# S3_SECRET_KEY=...
-# S3_BUCKET_NAME=odk-central
 ```
 
 **Check Garage status:**
 ```bash
-docker exec odk-garage ./garage status
-docker exec odk-garage ./garage bucket info odk-central
+docker exec odk-garage /garage status
+docker exec odk-garage /garage bucket info odk-central
 ```
 
 **Check nginx config:**
 ```bash
-grep "server_name\|proxy_pass" files/nginx/s3.conf
-# Should show:
-# server_name odk-central.s3.central.local s3.central.local;
-# proxy_pass http://garage:3900;
-# server_name web.central.local;
-# proxy_pass http://garage:3903;
+docker compose exec nginx sh -lc 'grep "server_name\\|proxy_pass" /etc/nginx/conf.d/s3.conf'
 ```
 
 **Test connectivity:**
@@ -161,7 +150,7 @@ docker compose exec service sh -c 'curl -I http://garage:3900/ 2>&1 | head -3'
   root_domain = ".web.central.local"
 ```
 
-### `files/nginx/s3.conf` (generated)
+### `/etc/nginx/conf.d/s3.conf` (generated inside nginx container)
 ```nginx
 # S3 API (bucket-specific: no wildcard)
 server {
@@ -184,7 +173,7 @@ server {
 
 ### `.env` (S3 variables added)
 ```bash
-S3_SERVER=https://s3.central.local
+S3_SERVER=https://odk-central.s3.central.local
 S3_ACCESS_KEY=GK...
 S3_SECRET_KEY=...
 S3_BUCKET_NAME=odk-central
@@ -196,13 +185,13 @@ S3_BUCKET_NAME=odk-central
 
 ### s3.conf not found
 ```bash
-bash scripts/generate-s3-conf.sh
+docker compose exec nginx sh -lc 'ls -la /etc/nginx/conf.d/s3.conf && head -n 5 /etc/nginx/conf.d/s3.conf'
 ```
 
 ### Garage not running
 ```bash
-docker compose -f docker-compose-garage.yml logs garage
-docker compose -f docker-compose-garage.yml restart garage
+docker compose -f docker-compose.yml -f docker-compose-garage.yml logs garage
+docker compose -f docker-compose.yml -f docker-compose-garage.yml restart garage
 ```
 
 ### Service can't reach Garage
@@ -223,11 +212,9 @@ docker compose config | grep -A 5 "S3_"
 docker compose restart service
 ```
 
-### Regenerate s3.conf after .env changes
+### Apply `.env` changes
 ```bash
-# After changing DOMAIN or S3_BUCKET_NAME in .env:
-bash scripts/generate-s3-conf.sh
-docker compose restart nginx
+docker compose restart service nginx
 ```
 
 ---
@@ -245,7 +232,7 @@ docker compose logs -f service | grep -i s3
 
 ### Check bucket contents:
 ```bash
-docker exec odk-garage ./garage bucket info odk-central
+docker exec odk-garage /garage bucket info odk-central
 # Shows: Size, Objects count
 ```
 
@@ -266,16 +253,15 @@ docker exec odk-garage ./garage bucket info odk-central
 
 1. **Test upload**: Create submission with photo attachment
 2. **Monitor logs**: `docker compose logs -f service | grep -i s3`
-3. **Check storage**: `docker exec odk-garage ./garage bucket info odk-central`
+3. **Check storage**: `docker exec odk-garage /garage bucket info odk-central`
 
 ---
 
 ## Full Documentation
 
-- **Detailed setup**: [README-GARAGE-SETUP.md](README-GARAGE-SETUP.md)
 - **Garage docs**: https://garagehq.deuxfleurs.fr/
-- **S3 setup script**: `garage/setup-garage.py`
+- **Scripts**: `./scripts/init-odk.sh` and `./scripts/add-s3.sh`
 
 ---
 
-**Questions?** Run `python garage/setup-garage.py` again - it's idempotent and preserves credentials.
+**Tip:** Re-running `./scripts/add-s3.sh` is safe; it reuses existing credentials when possible.

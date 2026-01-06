@@ -53,7 +53,6 @@ services:
       - mail
       - pyxform
       - enketo
-      - garage
     volumes:
       - secrets:/etc/secrets
       - /data/transfer:/data/transfer
@@ -110,6 +109,8 @@ services:
       - DOMAIN=${DOMAIN}
       - CERTBOT_EMAIL=${SYSADMIN_EMAIL}
       - SSL_TYPE=${SSL_TYPE:-letsencrypt}
+      - VG_GARAGE_ENABLED=${VG_GARAGE_ENABLED:-false}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-}
       - SENTRY_ORG_SUBDOMAIN=${SENTRY_ORG_SUBDOMAIN:-o130137}
       - SENTRY_KEY=${SENTRY_KEY:-3cf75f54983e473da6bd07daddf0d2ee}
       - SENTRY_PROJECT=${SENTRY_PROJECT:-1298632}
@@ -117,10 +118,8 @@ services:
     volumes:
       - ./files/local/customssl/:/etc/customssl/live/local/:ro
       - ./files/nginx/odk.conf.template:/usr/share/odk/nginx/odk.conf.template:ro
-      - ./files/nginx/s3.conf.template:/usr/share/odk/nginx/s3.conf.template:ro
       - ./files/nginx/client-config.json.template:/usr/share/odk/nginx/client-config.json.template:ro
-      # Optional: Pre-generated S3 config (run: make nginx-s3-conf or ./scripts/generate-s3-conf.sh)
-      - ./files/nginx/s3.conf:/etc/nginx/conf.d/s3.conf:ro
+      - ./files/nginx/s3.conf.template:/usr/share/odk/nginx/s3.conf.template:ro
       # Optional overrides/persistence:
       - ./crs/crs-setup.conf.example:/etc/modsecurity/crs/crs-setup.conf:ro
       - ./crs/rules:/etc/modsecurity/crs/rules:ro
@@ -183,33 +182,16 @@ services:
       - redis-server
       - /usr/local/etc/redis/redis.conf
     restart: always
-  garage:
-    image: dxflrs/garage:v2.1.0
-    container_name: odk-garage
-    command:
-      - ./garage
-      - server
-    ports:
-      - 127.0.0.1:3900:3900
-      - 127.0.0.1:3903:3903
-    volumes:
-      - garage_data:/data
-      - ./garage/garage.toml:/etc/garage.toml:ro
-    environment:
-      RUST_LOG: info
-    restart: always
-    networks:
-      - default
-
 volumes:
   secrets:
   transfer:
   postgres14:
   enketo_redis_main:
   enketo_redis_cache:
-  garage_data:
 networks:
   db_net:
     external: true
+    name: central_db_net
   web:
     external: true
+    name: central_web

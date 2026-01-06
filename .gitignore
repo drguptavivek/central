@@ -2,12 +2,20 @@
 *.swp
 *.swo
 /.env
+/.env.*
 /version.txt
 
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# Generated Garage config (contains secrets)
+/garage/garage.toml
+/garage/storage.conf
+
+# Generated Garage compose overlay (created by scripts/init-odk.sh)
+/docker-compose-garage.yml
 
 
 /logs/

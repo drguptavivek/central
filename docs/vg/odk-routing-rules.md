@@ -175,7 +175,7 @@ S3_BUCKET_NAME=odk-central
 [s3_api]
 root_domain = ".s3.central.yourdomain.com"
 
-# files/nginx/s3.conf
+# nginx (generated inside container from files/nginx/s3.conf.template)
 server_name odk-central.s3.central.yourdomain.com;
 proxy_pass http://garage:3900;
 ```

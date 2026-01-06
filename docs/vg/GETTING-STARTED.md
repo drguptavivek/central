@@ -17,18 +17,30 @@ This interactive script guides you through 4 key decisions:
 
 The script auto-generates `.env` with complete configuration.
 
-### 2. Start the Stack
+### 2. Build Containers
 
 ```bash
-./scripts/start-stack.sh
+docker compose build
 ```
 
-This script:
-- Validates your configuration
-- Creates Docker networks
-- Starts services in dependency order
-- Waits for health checks
-- Provides access information
+### 3. Start the Stack
+
+```bash
+# Create external networks (once)
+docker network create central_db_net || true
+docker network create central_web || true
+
+# Start
+docker compose up -d
+```
+
+If you selected **Garage S3**, bootstrap it first:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage
+./scripts/add-s3.sh
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d
+```
 
 ### 3. Access ODK Central
 
@@ -56,7 +68,9 @@ API:     https://central.local/v1
 **Outputs:**
 - `.env` - Complete configuration file
 - `.env.backup` - Previous .env (if exists)
-- `garage/garage.toml` - Garage S3 config (if S3=Garage)
+- `docker-compose-garage.yml` - Garage overlay (if S3=Garage)
+- `garage/garage.toml` - Garage config (if S3=Garage)
+- `garage/storage.conf` - Garage capacity (if S3=Garage)
 
 **Run:**
 ```bash
@@ -74,44 +88,20 @@ init-odk.sh
 │  ├─ SSL type + certs path
 │  └─ DB connection string
 ├─ Generate .env
-└─ Setup Garage (if selected)
+└─ Generate Garage configs (if selected)
 ```
 
-### `scripts/start-stack.sh` - Start Services
+### `scripts/add-s3.sh` - Bootstrap Garage (Optional)
 
-**Purpose:** Start ODK Central with validation and health checks
+**Purpose:** Initialize Garage (layout, key, bucket) and write credentials into `.env`.
 
-**Pre-checks:**
-- `.env` file exists
-- Docker installed
-- Docker Compose installed
-
-**Actions:**
-1. Create external Docker networks (`central_db_net`, `central_web`)
-2. Start all services with `docker-compose up -d`
-3. Wait for PostgreSQL readiness
-4. Wait for ODK Service startup
-5. Wait for nginx availability
-6. Display access information and next steps
+**When to run:** Only if you selected **S3=Garage** in `init-odk.sh`.
 
 **Run:**
 ```bash
-./scripts/start-stack.sh
-```
-
-**Output:**
-```
-✓ ODK Central stack is running!
-
-Access Points:
-  Web UI:    https://central.local:443
-  API:       https://central.local:443/v1
-  S3 API:    https://odk-central.s3.central.local
-
-Useful Commands:
-  View logs:        docker compose logs -f service
-  Check status:     docker compose ps
-  ...
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage
+./scripts/add-s3.sh
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d
 ```
 
 ---
@@ -147,7 +137,8 @@ See `docs/vg/odk-routing-decision-points.md` for detailed auto-derivation rules.
 # 4. selfsign (dev certs)
 # Domain: central.local
 
-./scripts/start-stack.sh
+docker compose build
+docker compose up -d
 # Add to /etc/hosts: 127.0.0.1 central.local
 # Access: https://central.local
 ```
@@ -163,7 +154,10 @@ See `docs/vg/odk-routing-decision-points.md` for detailed auto-derivation rules.
 # 4. selfsign
 # Domain: central.local
 
-./scripts/start-stack.sh
+docker compose build
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage
+./scripts/add-s3.sh
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d
 # Add to /etc/hosts:
 #   127.0.0.1 central.local
 #   127.0.0.1 odk-central.s3.central.local
@@ -187,7 +181,10 @@ See `docs/vg/odk-routing-decision-points.md` for detailed auto-derivation rules.
 # odk-central.s3.central.yourdomain.com → your-server-ip
 # web.central.yourdomain.com → your-server-ip
 
-./scripts/start-stack.sh
+docker compose build
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage
+./scripts/add-s3.sh
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d
 # Let's Encrypt will issue certificate automatically
 ```
 
@@ -204,7 +201,8 @@ See `docs/vg/odk-routing-decision-points.md` for detailed auto-derivation rules.
 # S3_SERVER: https://my-bucket.s3.amazonaws.com
 # DB_HOST: my-db.xxxxx.rds.amazonaws.com
 
-./scripts/start-stack.sh
+docker compose build
+docker compose up -d
 ```
 
 ### Scenario 5: Behind Corporate Proxy
@@ -224,7 +222,10 @@ See `docs/vg/odk-routing-decision-points.md` for detailed auto-derivation rules.
 #   - proxy_pass http://odk-server:8080
 #   - proxy_set_header X-Forwarded-Proto https
 
-./scripts/start-stack.sh
+docker compose build
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage
+./scripts/add-s3.sh
+docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d
 ```
 
 ---
@@ -327,8 +328,11 @@ cd central
 # 3. Review generated config
 cat .env
 
-# 4. Start the stack
-./scripts/start-stack.sh
+# 4. Create networks (once) + build + start
+docker network create central_db_net || true
+docker network create central_web || true
+docker compose build
+docker compose up -d
 
 # 5. Access ODK Central
 # Open: https://central.local (or your configured domain)
@@ -346,19 +350,19 @@ cat .env
 After running `init-odk.sh`, your `.env` contains the complete configuration:
 
 ```bash
-# These 4 lines document your decisions
+# Common keys
 DOMAIN=central.local
 SSL_TYPE=selfsign
-DB_HOST=postgres14
-S3_SERVER=https://odk-central.s3.central.local
-
-# Everything else is auto-derived from these decisions
 HTTP_PORT=80
 HTTPS_PORT=443
-DB_USER=odk
-DB_PASSWORD=odk
-S3_BUCKET_NAME=odk-central
-# etc.
+VG_GARAGE_ENABLED=false
+
+# If you selected Garage S3, you'll also see:
+# VG_GARAGE_ENABLED=true
+# S3_SERVER=https://odk-central.s3.central.local
+# S3_BUCKET_NAME=odk-central
+# S3_ACCESS_KEY=... (set by ./scripts/add-s3.sh)
+# S3_SECRET_KEY=... (set by ./scripts/add-s3.sh)
 ```
 
 To understand how a setting is derived, see:

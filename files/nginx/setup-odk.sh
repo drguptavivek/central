@@ -34,16 +34,18 @@ SELFSIGN_PATH="/etc/selfsign/live/$DOMAIN"
 if [ "$SSL_TYPE" = "selfsign" ] && { [ ! -s "$SELFSIGN_PATH/privkey.pem" ] || [ ! -s "$SELFSIGN_PATH/fullchain.pem" ]; }; then
   mkdir -p "$SELFSIGN_PATH"
 
-  # Build a SAN list based on DOMAIN and optional EXTRA_SERVER_NAME (handles DNS or IP)
+  # Build a SAN list based on DOMAIN and optional EXTRA_SERVER_NAME (space-separated, handles DNS or IP)
   SAN_INDEX=1
   SAN_LINES="DNS.${SAN_INDEX} = ${DOMAIN}"
   if [ -n "${EXTRA_SERVER_NAME:-}" ]; then
-    SAN_INDEX=$((SAN_INDEX + 1))
-    if echo "$EXTRA_SERVER_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
-      SAN_LINES="${SAN_LINES}\nIP.1 = ${EXTRA_SERVER_NAME}"
-    else
-      SAN_LINES="${SAN_LINES}\nDNS.${SAN_INDEX} = ${EXTRA_SERVER_NAME}"
-    fi
+    for name in $EXTRA_SERVER_NAME; do
+      if echo "$name" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+        SAN_LINES="${SAN_LINES}\nIP.1 = ${name}"
+      else
+        SAN_INDEX=$((SAN_INDEX + 1))
+        SAN_LINES="${SAN_LINES}\nDNS.${SAN_INDEX} = ${name}"
+      fi
+    done
   fi
 
   cat > /tmp/selfsign.conf <<EOF
@@ -83,12 +85,15 @@ CERT_DOMAIN=$( [ "$SSL_TYPE" = "customssl" ] && echo "local" || echo "$DOMAIN") 
   < /usr/share/odk/nginx/odk.conf.template \
   > /etc/nginx/conf.d/odk.conf
 
-
-# Generate S3 API config for Garage
-CERT_DOMAIN=$( [ "$SSL_TYPE" = "customssl" ] && echo "local" || echo "$DOMAIN") \
-/scripts/envsub.awk \
-  < /usr/share/odk/nginx/s3.conf.template \
-  > /etc/nginx/conf.d/s3.conf
+if [ "${VG_GARAGE_ENABLED:-false}" = "true" ]; then
+  # Generate S3 API config for Garage
+  CERT_DOMAIN=$( [ "$SSL_TYPE" = "customssl" ] && echo "local" || echo "$DOMAIN") \
+  /scripts/envsub.awk \
+    < /usr/share/odk/nginx/s3.conf.template \
+    > /etc/nginx/conf.d/s3.conf
+else
+  rm -f /etc/nginx/conf.d/s3.conf
+fi
 
 if [ "$SSL_TYPE" = "letsencrypt" ]; then
   echo "starting nginx for letsencrypt..."
@@ -101,6 +106,10 @@ else
     perl -i -ne 's/listen 443.*/listen 80;/; print if ! /ssl_/' /etc/nginx/conf.d/odk.conf
     # force https because we expect SSL upstream
     perl -i -pe 's/X-Forwarded-Proto \$scheme/X-Forwarded-Proto https/;' /etc/nginx/conf.d/odk.conf
+    if [ "${VG_GARAGE_ENABLED:-false}" = "true" ]; then
+      perl -i -ne 's/listen 443.*/listen 80;/; print if ! /ssl_/' /etc/nginx/conf.d/s3.conf
+      perl -i -pe 's/X-Forwarded-Proto \$scheme/X-Forwarded-Proto https/;' /etc/nginx/conf.d/s3.conf
+    fi
     echo "starting nginx for upstream ssl..."
   else
     # remove letsencrypt challenge reply, but keep 80 to 443 redirection
