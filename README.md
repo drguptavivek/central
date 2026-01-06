@@ -82,7 +82,7 @@ This model is designed to improve operational control and accountability in the 
 - Apply the VG DB schema before using VG features: `server/docs/sql/vg_app_user_auth.sql`
 
 
-## ODK Collect fork summary (AIIMS ODK Collect)
+## ODK Collect fork summary (MEDRES ODK Collect)
 
 The “short-lived token app users” work is intended to support a Collect workflow where:
 
