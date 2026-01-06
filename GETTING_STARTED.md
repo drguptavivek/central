@@ -2,21 +2,14 @@
 
 This guide walks you through setting up the ODK Central development environment (backend + frontend).
 
-## VG fork customization docs
+## VG fork docs
 
-This repo includes VG-specific customizations for app user authentication and settings. For details, see:
+This repo includes VG-specific customizations for app user authentication, telemetry, and deployment workflows.
 
-- [`client/docs/vg_client_changes.md`](client/docs/vg_client_changes.md)
-- [`client/docs/vg_core_client_edits.md`](client/docs/vg_core_client_edits.md)
-- [`client/docs/vg-component-short-token-app-users.md`](client/docs/vg-component-short-token-app-users.md)
-- [`server/docs/vg_api.md`](server/docs/vg_api.md)
-- [`server/docs/vg_overview.md`](server/docs/vg_overview.md)
-- [`server/docs/vg_user_behavior.md`](server/docs/vg_user_behavior.md)
-- [`server/docs/vg_settings.md`](server/docs/vg_settings.md)
-- [`server/docs/vg_implementation.md`](server/docs/vg_implementation.md)
-- [`server/docs/vg_installation.md`](server/docs/vg_installation.md)
-- [`server/docs/vg_core_server_edits.md`](server/docs/vg_core_server_edits.md)
-- [`server/docs/vg_tests.md`](server/docs/vg_tests.md)
+- **Deployment (self-hosting):** `docs/vg/GETTING-STARTED.md`
+- **VG docs index:** `docs/vg/README.md`
+- **Backend (VG):** `docs/vg/vg-server/`
+- **Frontend (VG):** `docs/vg/vg-client/`
 
 ## Prerequisites
 
@@ -43,6 +36,16 @@ git submodule status
 ---
 
 ## Step 2: Environment Configuration
+
+### Option A: Use the interactive config generator (recommended)
+
+```bash
+./scripts/init-odk.sh
+```
+
+This writes `.env` (and creates a timestamped backup like `.env.backup.YYYYMMDD-HHMMSS` if `.env` already exists).
+
+### Option B: Copy the template (manual)
 
 ```bash
 # Copy environment template
