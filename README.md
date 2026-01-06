@@ -7,9 +7,28 @@ This is a VG fork of the upstream ODK Central meta repo (`client/` + `server/` s
 
 ## What's included in this fork
 
-- **Central backend (`server/`)**: VG App User Auth (username/password + short-lived sessions), session caps/TTL, lockouts, audit logging, telemetry capture + admin listing, web-user `/v1/sessions` hardening, and Enketo Status management.
+- **Central backend (`server/`)**: VG App User Auth (username/password + short-lived sessions), session caps/TTL, lockouts, audit logging, telemetry capture + admin listing,  and Enketo Status management. 
 - **Central frontend (`client/`)**: Admin UX for app users (username/phone, create/reset/revoke/restore), System + Project settings UI (TTL/cap/`admin_pw`), session/device visibility, and Enketo Status monitoring/regeneration.
 - **ODK Collect fork**: Login + PIN protection, token expiry UX (timer + revalidation notifications), offline grace-period behavior, and shared-device isolation. -  https://github.com/drguptavivek/collect
+- **Garage S3 (Optional)**: Local S3 storage backend
+- **Security Hardening**: Modsecurity integrated image with OWASP Core Rule Set (CRS), webuser login `/v1/sessions` hardening,
+
+## Quickly Get Up and Running
+
+### For First-Time Users
+
+1. **[GETTING-STARTED.md](GETTING-STARTED.md)** ← **START HERE**
+   - 3-step quick start guide
+   - Interactive setup scripts
+   - Common scenarios with examples
+
+2. **[GETTING-STARTED-PRODUCTION.md](GETTING-STARTED-PRODUCTION.md)**
+   - Production/self-hosting quickstart (upstream SSL)
+   - Minimal steps: script → `.env` → docker commands → optional S3
+
+3. **[GETTING-STARTED-DEVELOPMENT.md](GETTING-STARTED-DEVELOPMENT.md)**
+   - Local development quickstart (dev profile + `client-dev`)
+
 
 ## Why this fork exists
 
