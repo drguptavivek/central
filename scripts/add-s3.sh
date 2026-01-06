@@ -22,6 +22,16 @@ if [ ! -f ".env" ]; then
   die ".env not found. Run: ./scripts/init-odk.sh"
 fi
 
+backup_env() {
+  local ts
+  ts="$(date +%Y%m%d-%H%M%S)"
+  local backup=".env.backup.${ts}"
+  cp .env "$backup"
+  log "Backed up existing .env to ${backup}"
+}
+
+backup_env
+
 set +u
 source .env
 set -u

@@ -268,6 +268,17 @@ fi
 # Preserve existing secrets (idempotent re-runs)
 # ----------------------------------------------------------------------------
 
+backup_env() {
+  if [ ! -f ".env" ]; then
+    return 0
+  fi
+  local ts
+  ts="$(date +%Y%m%d-%H%M%S)"
+  local backup=".env.backup.${ts}"
+  cp .env "$backup"
+  warn "Backed up existing .env to ${backup}"
+}
+
 existing_s3_access=""
 existing_s3_secret=""
 if [ -f ".env" ]; then
@@ -279,10 +290,7 @@ fi
 # Write .env (template + overrides)
 # ----------------------------------------------------------------------------
 
-if [ -f ".env" ]; then
-  warn "Backing up existing .env to .env.backup"
-  cp .env .env.backup
-fi
+backup_env
 
 cp .env.template .env
 

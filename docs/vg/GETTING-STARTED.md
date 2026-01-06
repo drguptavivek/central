@@ -67,7 +67,7 @@ API:     https://central.local/v1
 
 **Outputs:**
 - `.env` - Complete configuration file
-- `.env.backup` - Previous .env (if exists)
+- `.env.backup.YYYYMMDD-HHMMSS` - Previous .env (if exists)
 - `docker-compose-garage.yml` - Garage overlay (if S3=Garage)
 - `garage/garage.toml` - Garage config (if S3=Garage)
 - `garage/storage.conf` - Garage capacity (if S3=Garage)

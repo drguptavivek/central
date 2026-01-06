@@ -1,6 +1,9 @@
 .DS_Store
 *.swp
 *.swo
+*.bak
+*.backup
+*.backups
 /.env
 /.env.*
 /version.txt
