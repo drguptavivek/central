@@ -204,6 +204,34 @@ ENV_TYPE="$(prompt_choice "Environment type:" 1 \
   "Dev (central.local / local machine)" \
   "Prod (real domain / server)")"
 
+# ----------------------------------------------------------------------------
+# Handle dev-only compose files based on environment type
+# ----------------------------------------------------------------------------
+
+if [[ "$ENV_TYPE" == "Dev"* ]]; then
+  # Dev: Copy .example files if they don't exist
+  if [ -f "docker-compose.dev-override.yml.example" ] && [ ! -f "docker-compose.dev-override.yml" ]; then
+    log "Setting up dev compose files..."
+    cp docker-compose.dev-override.yml.example docker-compose.dev-override.yml
+    ok "Created docker-compose.dev-override.yml"
+  fi
+  if [ -f "docker-compose.dev.yml.example" ] && [ ! -f "docker-compose.dev.yml" ]; then
+    cp docker-compose.dev.yml.example docker-compose.dev.yml
+    ok "Created docker-compose.dev.yml"
+  fi
+else
+  # Prod: Remove dev files if they exist
+  if [ -f "docker-compose.dev-override.yml" ]; then
+    log "Removing dev-only compose files for production..."
+    rm docker-compose.dev-override.yml
+    ok "Removed docker-compose.dev-override.yml"
+  fi
+  if [ -f "docker-compose.dev.yml" ]; then
+    rm docker-compose.dev.yml
+    ok "Removed docker-compose.dev.yml"
+  fi
+fi
+
 SSL_CHOICE="$(prompt_choice "SSL termination:" 1 \
   "upstream (recommended behind reverse proxy)" \
   "letsencrypt (ODK nginx manages certs)" \
@@ -389,21 +417,45 @@ fi
 
 log ""
 log "${BOLD}Next steps${RESET}"
-log "1) Create networks (once):"
-log "   docker network create central_db_net || true"
-log "   docker network create central_web || true"
-log "2) Build:"
-log "   docker compose build"
-if [ "$VG_GARAGE_ENABLED" = "true" ]; then
-  log "3) Start Garage only:"
-  log "   docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage"
-  log "4) Bootstrap Garage (creates layout/key/bucket and updates .env):"
-  log "   ./scripts/add-s3.sh"
-  log "5) Start the full stack:"
-  log "   docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d"
+
+if [[ "$ENV_TYPE" == "Dev"* ]]; then
+  # Dev mode instructions
+  log "1) Create networks (once):"
+  log "   docker network create central_db_net || true"
+  log "   docker network create central_web || true"
+  log "2) Initialize submodules:"
+  log "   git submodule update --init --recursive"
+  log "3) Build:"
+  log "   docker compose -f docker-compose.yml -f docker-compose.dev-override.yml -f docker-compose.dev.yml --profile central build"
+  log "4) Start:"
+  log "   docker compose -f docker-compose.yml -f docker-compose.dev-override.yml -f docker-compose.dev.yml --profile central up -d"
+  log "5) Setup DB (VG customizations):"
+  log "   docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql"
+  log "6) See docs/vg/GETTING-STARTED-DEVELOPMENT.md for frontend dev setup"
 else
-  log "3) Start:"
-  log "   docker compose up -d"
+  # Production mode instructions
+  log "1) Create networks (once):"
+  log "   docker network create central_db_net || true"
+  log "   docker network create central_web || true"
+  log "2) Initialize submodules:"
+  log "   git submodule update --init --recursive"
+  if [ "$VG_GARAGE_ENABLED" = "true" ]; then
+    log "3) Build:"
+    log "   docker compose -f docker-compose.yml -f docker-compose-garage.yml build"
+    log "4) Start Garage only:"
+    log "   docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d garage"
+    log "5) Bootstrap Garage (creates layout/key/bucket and updates .env):"
+    log "   ./scripts/add-s3.sh"
+    log "6) Start the full stack:"
+    log "   docker compose -f docker-compose.yml -f docker-compose-garage.yml up -d"
+  else
+    log "3) Build:"
+    log "   docker compose -f docker-compose.yml build"
+    log "4) Start:"
+    log "   docker compose -f docker-compose.yml up -d"
+  fi
+  log ""
+  log "See docs/vg/GETTING-STARTED-PRODUCTION.md for reverse proxy setup"
 fi
 
 ok "Init finished"

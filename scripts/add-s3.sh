@@ -116,8 +116,8 @@ fi
 if [ -z "$access_key" ] || [ -z "$secret_key" ]; then
   log "Creating S3 key '${key_name}'..."
   out="$(garage key create "$key_name" 2>&1)"
-  access_key="$(echo "$out" | grep -E '^(Key ID:)' | head -n 1 | sed -E 's/^Key ID:\\s*//')"
-  secret_key="$(echo "$out" | grep -E '^(Secret key:)' | head -n 1 | sed -E 's/^Secret key:\\s*//')"
+  access_key="$(echo "$out" | grep -E '^Key ID:' | head -n 1 | sed -E 's/^Key ID:[[:space:]]*//')"
+  secret_key="$(echo "$out" | grep -E '^Secret key:' | head -n 1 | sed -E 's/^Secret key:[[:space:]]*//')"
   if [ -z "$access_key" ] || [ -z "$secret_key" ]; then
     echo >&2 "$out"
     die "Failed to parse key output from Garage."

@@ -5,7 +5,7 @@
       "user": "${DB_USER}",
       "password": "${DB_PASSWORD}",
       "database": "${DB_NAME}",
-      "ssl": ${DB_SSL},
+      "ssl": null,
       "maximumPoolSize": ${DB_POOL_SIZE}
     },
     "email": {

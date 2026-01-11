@@ -249,14 +249,18 @@ server {
   }
 
   location / {
-    # Dev: proxy everything (including HMR websocket paths) to the Vite server
-    # in the client-dev container so frontend + backend share the same origin.
-    proxy_pass http://client-dev:8989;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-    proxy_cache off;
+    # In dev mode (VG_CLIENT_DEV_MODE=true), proxy to Vite dev server
+    # In production, serve built static files
+    # Note: This template is processed by envsub.awk at runtime
+
+    # DEV MODE: Proxy to client-dev Vite server
+    # PROD MODE: Serve static files from /usr/share/nginx/html
+    # The setup-odk.sh script will configure this based on VG_CLIENT_DEV_MODE
+
+    root /usr/share/nginx/html;
+    try_files $uri $uri/ /index.html;
+
+    add_header Content-Security-Policy-Report-Only "$central_frontend_csp";
 
     include /usr/share/odk/nginx/common-headers.conf;
   }

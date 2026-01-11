@@ -116,5 +116,22 @@ else
     perl -i -ne 'print if $. < 9 || $. > 16' /etc/nginx/conf.d/redirector.conf
     echo "starting nginx for custom ssl and self-signed certs..."
   fi
+
+  # VG: If in dev mode, replace static file serving with proxy to client-dev
+  if [ "${VG_CLIENT_DEV_MODE:-false}" = "true" ]; then
+    echo "configuring nginx to proxy to client-dev (dev mode)..."
+    perl -i -pe '
+      if (/location \/ \{/../^\s*\}/) {
+        if (/root \/usr\/share\/nginx\/html;/) {
+          $_ = "    # Dev mode: proxy to Vite dev server\n    proxy_pass http://client-dev:8989;\n    proxy_http_version 1.1;\n    proxy_set_header Host \$host;\n    proxy_set_header Upgrade \$http_upgrade;\n    proxy_set_header Connection \"upgrade\";\n    proxy_cache off;\n";
+        } elsif (/try_files/) {
+          $_ = "";
+        } elsif (/add_header Content-Security-Policy-Report-Only/) {
+          $_ = "";
+        }
+      }
+    ' /etc/nginx/conf.d/odk.conf
+  fi
+
   exec nginx -g "daemon off;"
 fi

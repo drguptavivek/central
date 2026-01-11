@@ -20,6 +20,10 @@ __pycache__/
 # Generated Garage compose overlay (created by scripts/init-odk.sh)
 /docker-compose-garage.yml
 
+# Dev-only compose files (copied from .example by developers)
+/docker-compose.dev-override.yml
+/docker-compose.dev.yml
+
 
 /logs/
 /tmp/

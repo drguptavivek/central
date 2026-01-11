@@ -73,17 +73,19 @@ If you use Garage later, you’ll also need:
 
 ## Step 4: Build + Start (Dev Profile)
 
+**Note**: The `init-odk.sh` script (Step 2) automatically created `docker-compose.dev-override.yml` and `docker-compose.dev.yml` from their `.example` templates when you selected "Dev" environment. These files are gitignored to prevent dev config from interfering with production deployments.
+
 ```bash
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose.override.yml \
+  -f docker-compose.dev-override.yml \
   -f docker-compose.dev.yml \
   --profile central \
   build
 
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose.override.yml \
+  -f docker-compose.dev-override.yml \
   -f docker-compose.dev.yml \
   --profile central \
   up -d
@@ -114,7 +116,7 @@ docker compose exec service odk-cmd --email your@email.com user-set-password
 ```bash
 docker compose \
   -f docker-compose.yml \
-  -f docker-compose.override.yml \
+  -f docker-compose.dev-override.yml \
   -f docker-compose.dev.yml \
   --profile central \
   up -d client-dev

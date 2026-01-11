@@ -18,21 +18,22 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 
 ## Run the frontend dev server (Vite/HMR)
 
-`nginx` proxies `/` to the Vite server at `http://client-dev:8989`.
+In dev mode, `nginx` proxies `/` to the Vite dev server at `http://client-dev:8989`.
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d client-dev
+docker compose -f docker-compose.yml -f docker-compose.dev-override.yml -f docker-compose.dev.yml --profile central up -d
 ```
 
-If `nginx` logs `host not found in upstream "client-dev"`, `client-dev` is not running or not on the same compose network; start it with the command above.
+Access at `https://central.local` (accept the self-signed cert).
 
 ## Rebuild (service/nginx)
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central build service nginx
+docker compose -f docker-compose.yml -f docker-compose.dev-override.yml -f docker-compose.dev.yml --profile central build service nginx
 ```
 
-Note: the nginx image build supports `SKIP_FRONTEND_BUILD=1` (wired via `docker-compose.dev.yml`) to avoid building the frontend during the nginx image build.
+**Note**: Dev mode nginx build uses `SKIP_FRONTEND_BUILD=1` to avoid building the Vue frontend (since client-dev serves it with HMR).
+Production nginx builds the frontend assets during the image build.
 
 ## Logs
 

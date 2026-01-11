@@ -58,9 +58,13 @@ docker network create central_web || true
 
 ## Step 3: Build
 
+**Important**: Use explicit `-f` flags to avoid loading dev-only compose files:
+
 ```bash
-docker compose build
+docker compose -f docker-compose.yml -f docker-compose-garage.yml build
 ```
+
+**Note**: Do NOT use `docker compose build` without `-f` flags in production, as it would auto-load `docker-compose.override.yml` if present (dev-only).
 
 ---
 
@@ -69,7 +73,7 @@ docker compose build
 ### Option A (Default): No S3 (blobs in PostgreSQL)
 
 ```bash
-docker compose up -d
+docker compose -f docker-compose.yml up -d
 ```
 
 ### Option B (Optional): Garage S3

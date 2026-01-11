@@ -66,7 +66,6 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-odk}
       - DB_POOL_SIZE=${DB_POOL_SIZE:-10}
       - DB_NAME=${DB_NAME:-odk}
-      - DB_SSL=${DB_SSL:-null}
       - EMAIL_FROM=${EMAIL_FROM:-no-reply@$DOMAIN}
       - EMAIL_HOST=${EMAIL_HOST:-mail}
       - EMAIL_PORT=${EMAIL_PORT:-25}

@@ -25,10 +25,12 @@ services:
       - none
   nginx:
     profiles:
-      - none
+      - central
     build:
       args:
         SKIP_FRONTEND_BUILD: "1"
+    environment:
+      - VG_CLIENT_DEV_MODE=true
   pyxform:
     profiles:
       - central
