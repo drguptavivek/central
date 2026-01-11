@@ -29,6 +29,27 @@ This is a VG fork of the upstream ODK Central meta repo (`client/` + `server/` s
 3. **[GETTING-STARTED-DEVELOPMENT.md](./docs/vg/GETTING-STARTED-DEVELOPMENT.md)**
    - Local development quickstart (dev profile + `client-dev`)
 
+### Troubleshooting
+
+Run the diagnostic script to check your ODK Central setup:
+
+```bash
+./scripts/odk-doctor.sh
+```
+
+This checks:
+- **Prerequisites**: Docker, Docker Compose, git submodules
+- **Configuration**: `.env` file, S3, database, SSL settings
+- **Docker environment**: Networks, port conflicts
+- **Runtime status**: Containers, database connectivity, Garage (if enabled)
+- **File permissions**: Write access to key directories
+
+Common fixes suggested by `odk-doctor`:
+- Missing `.env`: Run `./scripts/init-odk.sh`
+- Missing networks: `docker network create central_db_net && docker network create central_web`
+- Missing submodules: `git submodule update --init --recursive`
+- Garage not configured: `./scripts/add-s3.sh` (if using Garage)
+
 
 ## Why this fork exists
 
