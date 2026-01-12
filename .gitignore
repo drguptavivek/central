@@ -25,3 +25,4 @@ __pycache__/
 /files/mail/rsa.public
 
 /files/dkim/*
+.osgrep
