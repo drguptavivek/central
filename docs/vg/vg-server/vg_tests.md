@@ -1,6 +1,6 @@
 # VG app-user auth: test scenarios and status
 
-> **Last Updated**: 2026-01-02
+> **Last Updated**: 2026-01-13
 
 Key scenarios covered for the vg app-user auth / short-lived token work.
 
@@ -15,11 +15,12 @@ Approximate test counts (by `it(...)` blocks):
   - `test/integration/api/vg-tests-orgAppUsers.js`: 22
   - `test/integration/api/vg-telemetry.js`: 13
   - `test/integration/api/vg-webusers.js`: 6
+  - `test/integration/api/vg-web-user-ip-rate-limit.js`: 11
 - Unit:
   - `test/unit/util/vg-password.js`: 6
   - `test/unit/domain/vg-app-user-auth.js`: 1
 
-Total (above files): 103
+Total (above files): 114
 
 | Scenario | Coverage | Status | Notes | Command |
 | --- | --- | --- | --- | --- |
@@ -38,6 +39,7 @@ Total (above files): 103
 | Submission with old token after password change fails; new token works | `test/integration/api/vg-tests-orgAppUsers.js` | ✅ Pass | Old token 403, new token 200 post-change | same as above |
 | Telemetry capture + admin listing (filters, paging) | `test/integration/api/vg-telemetry.js` | ✅ Pass | App-user telemetry write and system admin listing with filters | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-telemetry.js` |
 | Web-user login hardening (audit, lockout duration, attempts remaining, Retry-After) | `test/integration/api/vg-webusers.js` | ✅ Pass | Covers `/v1/sessions` behavior (non-OIDC): lockouts + headers + audit details | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-webusers.js` |
+| IP-based rate limiting for web users (prevents username enumeration) | `test/integration/api/vg-web-user-ip-rate-limit.js` | ✅ Pass | 20 failed attempts per IP → lock 30 min; independent of per-user lockout; time window filtering; different IPs tracked separately | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-web-user-ip-rate-limit.js` |
 | Unit: password policy accept | `test/unit/util/vg-password.js` | ✅ Pass | Valid password returns true | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js` |
 | Unit: too short | `test/unit/util/vg-password.js` | ✅ Pass | Rejects short password | same as above |
 | Unit: missing special char | `test/unit/util/vg-password.js` | ✅ Pass | Rejects missing special | same |
@@ -52,4 +54,5 @@ Run in this session:
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js` (vg-only rewrite of legacy app-user routes)
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-telemetry.js`
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-webusers.js`
+- ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-web-user-ip-rate-limit.js` (IP rate limiting - prevents username enumeration)
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/domain/vg-app-user-auth.js`
