@@ -26,9 +26,6 @@ services:
   nginx:
     profiles:
       - none
-    build:
-      args:
-        SKIP_FRONTEND_BUILD: "1"
   pyxform:
     profiles:
       - central
@@ -40,7 +37,7 @@ services:
     volumes:
       - dev_secrets:/etc/secrets
     working_dir: /etc/secrets
-    command: /bin/sh -c 'echo "s0m3v3rys3cr3tk3y" > enketo-secret && echo "this $3cr3t key is crackable" > enketo-less-secret && echo "cRliFU6qVD0NyXaVd52BkdFdS7kvGcvWgBnM0IFBkksmzawz7HGPwghcJN5AADQq6oBeGFfgqE0q92kxBTAX5ZaQw9HtFYTWtKFHmAMuBp419BtxPjA9sYaXENhOdqUV" > enketo-api-key'
+    command: /bin/sh -c 'echo "s0m3v3rys3cr3tk3y" > enketo-secret && echo "this $3cr3t key is crackable" > enketo-less-secret && echo "enketorules" > enketo-api-key'
   enketo:
     profiles:
       - central
@@ -52,7 +49,6 @@ services:
     environment:
       - ENV=DEV
       - ENKETO_SECRETS=danger-insecure
-      - NODE_TLS_REJECT_UNAUTHORIZED=0
     extra_hosts:
     - "${DOMAIN}:host-gateway"
     ports:
