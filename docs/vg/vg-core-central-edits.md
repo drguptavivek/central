@@ -46,7 +46,6 @@ This document tracks all modifications made to the ODK Central meta-repo that de
 │  ├── Modsecurity/CRS configs                                          │
 │  └── Security logging volumes                                          │
 │                                                                        │
-│  docker-compose.dev-overrides.yml (VG DEV BACKUP) ➕                   │
 │                                                                        │
 │  files/nginx/odk.conf.template (UPSTREAM + 6 LINES) ⚠️                 │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -113,21 +112,8 @@ services:
 
 ---
 
-### 3. docker-compose.dev-overrides.yml ➕ VG ONLY
 
-**Status:** VG-EXCLUSIVE FILE (backup of old dev overrides)
-
-**Location:** `/docker-compose.dev-overrides.yml`
-
-**Purpose:** Previous development configurations saved for reference
-
-**Why Not Auto-loaded:** Dev configs now manually specified with `-f` flag
-
-**Usage:** `docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev-overrides.yml up`
-
----
-
-### 4. files/nginx/odk.conf.template ⚠️ MINIMAL CHANGE
+### 3. files/nginx/odk.conf.template ⚠️ MINIMAL CHANGE
 
 **Status:** UPSTREAM + 6 LINES OF VG DIRECTIVES
 
@@ -173,7 +159,7 @@ Upstream doesn't use modsecurity. Pure upstream odk.conf.template has no modsecu
 
 ---
 
-### 5. .gitmodules
+### 4. .gitmodules
 
 **Status:** VG-MODIFIED (3 additional submodules)
 
@@ -290,7 +276,6 @@ logs/
 | `docker-compose.yml` | ✅ Exists | ✅ Pure upstream v2025.4.1 | ✅ Yes |
 | `docker-compose.override.yml` | ❌ None | ✅ Security configs | ✅ Yes |
 | `docker-compose.dev.yml` | ✅ Exists | ✅ Same as upstream | ❌ Manual `-f` |
-| `docker-compose.dev-overrides.yml` | ❌ None | ✅ Dev tools backup | ❌ Manual `-f` |
 
 ### Logging Comparison
 
@@ -401,7 +386,7 @@ git push origin vg-work
 
 | Category | Upstream | VG | Count |
 |----------|----------|-----|-------|
-| **Docker compose files** | 2 | 4 (+2) | +2 files |
+| **Docker compose files** | 2 | 3 (+1) | +1 file |
 | **Submodules** | 2 | 5 (+3) | +3 submodules |
 | **Networks** | 1 (default) | 1 (default) | 0 (uses upstream) |
 | **Nginx config changes** | Pure upstream | 6 lines | 6 lines |
