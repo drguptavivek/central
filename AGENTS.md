@@ -2,8 +2,50 @@
 This file captures local workflow conventions and key customizations for the
 `central` repo and its `client` and `server` submodules.
 
-### Central (meta repo) 
+### Central (meta repo)
 - Tracks `client` and `server` submodule pointers on `vg-work`.
+
+## Architecture: Minimal Fork with Override Pattern
+
+**Updated:** 2026-01-13 (v2025.4.1 integration)
+
+### File Structure
+- **docker-compose.yml**: Pure upstream v2025.4.1 (NO VG modifications)
+- **docker-compose.override.yml**: Modsecurity/CRS security ONLY
+- **docker-compose.dev-overrides.yml**: Dev overrides (saved for reference)
+- **docker-compose.dev.yml**: Profile management (separate)
+- **files/nginx/setup-odk.sh**: Pure upstream (no modifications)
+- **Server submodule**: VG vg-work with auth system and security features
+- **Client submodule**: VG vg-work with UI customizations
+- **Modsecurity**: Configs in crs/ and crs_custom/ submodules (volume-mounted)
+
+### Philosophy
+- **Keep central minimal**: All VG features in submodules
+- **Isolate security**: All modsecurity/CRS configs in docker-compose.override.yml
+- **Separate dev**: Dev overrides in docker-compose.dev-overrides.yml (not auto-loaded)
+- **Pure upstream files**: Easy to merge future upstream updates
+
+### Usage
+```bash
+# Production (with modsecurity security)
+docker compose up
+
+# Development (with modsecurity + dev tools)
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml up
+```
+
+### Future Upstream Updates
+Updating to future releases is now trivial:
+```bash
+git fetch upstream --tags
+git merge v2025.5.0  # Minimal conflicts: .gitmodules, docs/vg, etc.
+git checkout --theirs docker-compose.yml  # Take upstream
+git checkout --theirs files/nginx/setup-odk.sh  # Take upstream
+git checkout --ours .gitmodules docs/vg CLAUDE.md  # Keep VG
+git add -A && git commit && git push
+```
+
+**No rebase needed** - just merge and keep override files!
 
 ## Create Central VG Customization Specific Docs 
 - In docs/vg/ in the meta repo. Organized by  vg-client and vg-server
