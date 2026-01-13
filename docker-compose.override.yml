@@ -13,6 +13,10 @@ services:
       args:
         NGINX_BASE_IMAGE: ${NGINX_BASE_IMAGE:-drguptavivek/central-nginx-vg-base:6.0.1}
     volumes:
+      # VG modsecurity nginx configs
+      - ./files/vg-nginx/vg-nginx-modules.conf:/etc/nginx/modules-enabled/50-vg-nginx-modules.conf:ro
+      - ./files/vg-nginx/vg-modsecurity-odk.conf:/etc/modsecurity/modsecurity-odk.conf:ro
+      - ./files/vg-nginx/vg-headers-more.conf:/usr/share/odk/nginx/vg-headers-more.conf:ro
       # Modsecurity CRS configs
       - ./crs/crs-setup.conf.example:/etc/modsecurity/crs/crs-setup.conf:ro
       - ./crs/rules:/etc/modsecurity/crs/rules:ro
