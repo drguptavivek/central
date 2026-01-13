@@ -41,12 +41,8 @@ COPY files/nginx/setup-odk.sh \
 COPY files/nginx/redirector.conf /usr/share/odk/nginx/
 COPY files/nginx/backend.conf /usr/share/odk/nginx/
 COPY files/nginx/common-headers.conf /usr/share/odk/nginx/
-COPY files/nginx/vg-headers-more.conf /usr/share/odk/nginx/
 COPY files/nginx/robots.txt /usr/share/nginx/html
 COPY --from=intermediate client/dist/ /usr/share/nginx/html
 COPY --from=intermediate /tmp/version.txt /usr/share/nginx/html
-
-COPY files/nginx/vg-nginx-modules.conf /etc/nginx/modules-enabled/50-vg-nginx-modules.conf
-COPY files/nginx/vg-modsecurity-odk.conf /etc/modsecurity/modsecurity-odk.conf
 
 ENTRYPOINT [ "/scripts/setup-odk.sh" ]
