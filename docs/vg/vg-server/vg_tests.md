@@ -11,7 +11,7 @@ Note: the test suite uses the fixture `server/test/integration/fixtures/03-vg-ap
 Approximate test counts (by `it(...)` blocks):
 
 - Integration:
-  - `test/integration/api/vg-app-user-auth.js`: 55
+  - `test/integration/api/vg-app-user-auth.js`: 62
   - `test/integration/api/vg-tests-orgAppUsers.js`: 22
   - `test/integration/api/vg-telemetry.js`: 13
   - `test/integration/api/vg-webusers.js`: 6
@@ -25,7 +25,7 @@ Approximate test counts (by `it(...)` blocks):
   - `test/unit/util/vg-password.js`: 6
   - `test/unit/domain/vg-app-user-auth.js`: 1
 
-Total (above files): 156
+Total (above files): 163
 
 | Scenario | Coverage | Status | Notes | Command |
 | --- | --- | --- | --- | --- |
@@ -47,6 +47,7 @@ Total (above files): 156
 | IP-based rate limiting for web users (prevents username enumeration) | `test/integration/api/vg-web-user-ip-rate-limit.js` | ✅ Pass | 20 failed attempts per IP → lock 30 min; independent of per-user lockout; time window filtering; different IPs tracked separately | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-web-user-ip-rate-limit.js` |
 | Per-user web lockout (email+IP based) | `test/integration/api/vg-web-user-lockout.js` | ✅ Pass | 5 failed attempts per email+IP → lock 10 min; case-insensitive email tracking; audit logging; missing IP handling; retry-after headers | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-web-user-lockout.js` |
 | IP-based rate limiting for app users (prevents username enumeration) | `test/integration/api/vg-app-user-ip-rate-limit.js` | ✅ Pass | 20 failed attempts per IP → lock 30 min; independent of per-username lockout; uses X-Forwarded-For header; time window filtering; different IPs tracked separately | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-app-user-ip-rate-limit.js` |
+| IP rate limiting settings (configurable via API) | `test/integration/api/vg-app-user-auth.js` | ✅ Pass | System/project settings for IP max failures, window, lock duration; validation; project overrides | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-app-user-auth.js --grep "IP rate limiting settings"` |
 | Enketo form status across all projects | `test/integration/api/vg-enketo-status.js` | ✅ Pass | Returns enketo status summary; counts by status type; filters by projectId; determines closed status correctly | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-enketo-status.js` |
 | Enketo ID regeneration (domain) | `test/integration/api/vg-enketo-status-domain.js` | ✅ Pass | Regenerate enketoId for open forms; fail for closed/non-existent forms | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-enketo-status-domain.js` |
 | Enketo status API endpoints (system) | `test/integration/api/vg-enketo-status-api.js` | ✅ Pass | GET /v1/system/enketo-status; POST /v1/system/enketo-status/regenerate; RBAC (config.read/config.set); filter by projectId/xmlFormId | `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-enketo-status-api.js` |
@@ -71,3 +72,4 @@ Run in this session:
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-enketo-status-api.js`
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/domain/vg-app-user-auth.js`
 - ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-app-user-ip-rate-limit.js` (app user IP rate limiting)
+- ✅ `NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-app-user-auth.js --grep "IP rate limiting settings"` (settings API tests)
