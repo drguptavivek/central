@@ -6,6 +6,8 @@ This guide walks you through setting up the ODK Central development environment 
 
 This repo includes VG-specific customizations for app user authentication and settings. For details, see:
 
+- [`docs/vg/vg_modsecurity.md`](docs/vg/vg_modsecurity.md) - Modsecurity WAF implementation
+- [`docs/vg/vg-core-central-edits.md`](docs/vg/vg-core-central-edits.md) - Central meta-repo changes vs upstream
 - [`client/docs/vg_client_changes.md`](client/docs/vg_client_changes.md)
 - [`client/docs/vg_core_client_edits.md`](client/docs/vg_core_client_edits.md)
 - [`client/docs/vg-component-short-token-app-users.md`](client/docs/vg-component-short-token-app-users.md)
@@ -79,6 +81,16 @@ Add this line:
 
 ## Step 4: Build and Start Backend Services
 
+### Current Docker Compose Files
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Pure upstream v2025.4.1 |
+| `docker-compose.override.yml` | VG security configs (modsecurity) |
+| `docker-compose.dev.yml` | Profile management (same as upstream) |
+
+### Build and Start Commands
+
 ```bash
 cd central
 
@@ -96,7 +108,6 @@ docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_
 
 # Start service and nginx
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d service nginx
-
 ```
 
 **Backend is now running at:** `https://central.local`
@@ -116,7 +127,6 @@ docker compose exec service odk-cmd --email your@email.com user-promote
 
 # Reset password
 docker compose exec service odk-cmd --email your@email.com user-set-password
-
 ```
 
 ---
@@ -157,7 +167,7 @@ client-dev:8989    service:8383 -> enketo:8005
 ```bash
 cd central
 # Build images and start everything (frontend is built into nginx image)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d
+docker compose up -d
 ```
 
 - Use a real hostname in `.env` (`DOMAIN=mydomain.org`) and set `SSL_TYPE` to `letsencrypt` for real certs, or `selfsign` for local.
@@ -185,12 +195,15 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 
 ## GIT Submodule Workflow
 
-This project uses two git submodules:
+This project uses git submodules:
 
 | Submodule | Path | Repository |
 |-----------|------|------------|
 | Backend | `server/` | `drguptavivek/central-backend.git` |
 | Frontend | `client/` | `drguptavivek/central-frontend.git` |
+| Knowledge Base | `agentic_kb/` | `drguptavivek/agentic_kb.git` |
+| Nginx Base Image | `central-nginx-vg-base/` | `drguptavivek/central-nginx-vg-base.git` |
+| OWASP CRS | `crs/` | `coreruleset/coreruleset.git` |
 
 ### Understanding Submodules
 
@@ -233,15 +246,15 @@ git submodule update --recursive
 cd central/server
 
 # 2. Ensure you're on the correct branch
-git checkout master
-git pull origin master
+git checkout vg-work
+git pull origin vg-work
 
 # 3. Make your changes, then commit
 git add .
 git commit -m "feat: your backend change"
 
 # 4. Push to backend repo
-git push origin master
+git push origin vg-work
 
 # 5. Update pointer in central repo
 cd ..
@@ -257,15 +270,15 @@ git push
 cd central/client
 
 # 2. Ensure you're on the correct branch
-git checkout master
-git pull origin master
+git checkout vg-work
+git pull origin vg-work
 
 # 3. Make your changes, then commit
 git add .
 git commit -m "feat: your frontend change"
 
 # 4. Push to frontend repo
-git push origin master
+git push origin vg-work
 
 # 5. Update pointer in central repo
 cd ..
@@ -280,12 +293,12 @@ git push
 # 1. Commit and push backend changes
 cd central/server
 git add . && git commit -m "feat: backend change"
-git push origin master
+git push origin vg-work
 
 # 2. Commit and push frontend changes
 cd ../client
 git add . && git commit -m "feat: frontend change"
-git push origin master
+git push origin vg-work
 
 # 3. Update both pointers in central
 cd ..
@@ -397,6 +410,9 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 # View specific service logs
 docker compose logs nginx -f
 docker compose logs postgres14 -f
+
+# Modsecurity audit logs
+tail -f logs/modsecurity/audit.log | jq
 ```
 
 ### Restart Services
@@ -420,37 +436,4 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 ```bash
 # Connect to PostgreSQL
 docker exec -it central-postgres14-1 psql -U odk -d odk
-```
-
----
-
-
-## BACKEND TESTS
-
-
-```bash
-
-# VG password unit test
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
-
-
-# VG integration tests
-docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE ROLE odk_test_user LOGIN PASSWORD 'odk_test_pw'"
-
-docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE DATABASE odk_integration_test OWNER odk_test_user"
-
-docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server/docs/sql/vg_app_user_auth.sql
-
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
-
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js'
-
-
-
- docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api'
-
-
- docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter dot'
-
-  docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter min'
 ```

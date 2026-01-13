@@ -1,8 +1,9 @@
-
 ## VG fork customization docs
 
 This repo includes VG-specific customizations for app user authentication and settings. For details, see:
 
+- `docs/vg/vg_modsecurity.md` - Modsecurity WAF implementation
+- `docs/vg/vg-core-central-edits.md` - Central meta-repo changes vs upstream
 - `client/docs/vg_client_changes.md`
 - `client/docs/vg_core_client_edits.md`
 - `client/docs/vg-component-short-token-app-users.md`
@@ -16,159 +17,175 @@ This repo includes VG-specific customizations for app user authentication and se
 - `server/docs/vg_tests.md`
 
 ## SUBMODULES
-   ../central/server is a git submodule
-  (from .gitmodules: https://github.com/drguptavivek/
-  central-backend.git). 
-  
-  If you run git commit at the top of ../central, 
-  you will only record the submodule pointer change 
-  (the SHA of server), not the actual backend file changes. 
-  
-  The backend files are committed by going inside 
-  ../central/server and committing to
-  whatever branch is checked out there (likely master
-  unless you switched). So:
 
-  - Commit backend changes: cd ../central/server &&
-    git status && git commit … (push to drguptavivek/
-    central-backend on the current branch).
-  - Then, if you want ../central to track that new
-    backend commit, cd ../central, git add server, git
-    commit … (this updates the submodule SHA recorded
-    in the parent repo).
+This repo uses git submodules:
 
-  Committing only in ../central without committing in
-  server will not preserve the backend edits—they’ll
-  remain as “dirty submodule” changes.
-  
+| Submodule | Path | Repository |
+|-----------|------|------------|
+| Backend | `server/` | `drguptavivek/central-backend.git` |
+| Frontend | `client/` | `drguptavivek/central-frontend.git` |
+| Knowledge Base | `agentic_kb/` | `drguptavivek/agentic_kb.git` |
+| Nginx Base Image | `central-nginx-vg-base/` | `drguptavivek/central-nginx-vg-base.git` |
+| OWASP CRS | `crs/` | `coreruleset/coreruleset.git` |
+
+### Understanding Submodules
+
+The main `central` repo only tracks **pointers** (SHA commits) to submodules, not the actual code. Changes inside `server/` or `client/` must be committed **inside** those directories first, then update the pointer in the parent `central` repo.
+
+### Initial Setup
+
 ```bash
-cd central 
-# inside central to sync local config; 
-git submodule sync --recursive 
-# to pull the new remotes.
-git submodule update --init --recursive 
-git submodule status 
-# to verify they point to your forks.
-git  config --get-regexp '^submodule\..*\.url$' 
+cd central
+
+# Sync submodule config
+git submodule sync --recursive
+
+# Initialize and pull submodules
+git submodule update --init --recursive
+
+# Verify submodules
+git submodule status
+git config --get-regexp '^submodule\..*\.url$'
 ```
 
+### Committing Submodule Changes
+
+```bash
+# Commit backend changes:
+cd server && git status && git commit …
+# Push to drguptavivek/central-backend on the current branch
+
+# Then update the pointer in central:
+cd .. && git add server && git commit …
+# This updates the submodule SHA recorded in the parent repo
+```
+
+**Important:** Committing only in `central` without committing in `server`/`client` will not preserve the edits—they'll remain as "dirty submodule" changes.
+
 ## ENV
-  
+
 ```bash
 cd central && cp .env.template .env
 ```
 
+Edit `.env` with:
+```
 DOMAIN=central.local
 SYSADMIN_EMAIL=you@example.com
-SSL_TYPE=selfsign 
+SSL_TYPE=selfsign
+```
 
-(easier locally), and keep the    default ports.
-
-
--  Add 127.0.0.1 central.local to /etc/hosts so the domain resolves.
+Add `127.0.0.1 central.local` to `/etc/hosts`:
 ```bash
 sudo nano /etc/hosts
 ```
 
-## DEVELPONG BACNEKD
+## DOCKER UP
 
-Added a dev override to bind-mount the backend so code updates reload via nodemon.
-```central/docker-compose.override.yml```
+### Current Docker Compose Files
 
- - Mounts ./server into the container (/usr/odk) and keeps node_modules in a named
-    volume so your image-installed deps aren’t clobbered.
-  - Runs `npx nodemon --watch lib --watch config lib/bin/run-server.js` for live reload.
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Pure upstream v2025.4.1 |
+| `docker-compose.override.yml` | VG security configs (modsecurity) |
+| `docker-compose.dev.yml` | Profile management (same as upstream) |
 
- 
-# DOCKER UP 
+### Build and Start
 
 ```bash
 cd central
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central build  postgres14 enketo_redis_main  enketo_redis_cache pyxform enketo mail secrets service
+# Build all services
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central build postgres14 enketo_redis_main enketo_redis_cache pyxform enketo mail secrets service
 
+# Start services
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d 
-
+# Install npm dependencies
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central run --rm service npm install
 
-# Apply DB migration
+# Apply database migrations
 docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 
-
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up  -d service nginx
-
+# Start service and nginx
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d service nginx
 ```
 
-- Hit https://central.local (or http://central.local if you switch SSL_TYPE to upstream/    customssl).
-  
-  http://central.local
+**Backend is now running at:** `https://central.local`
 
-Edit backend files locally in central/server;  nodemon inside the container will reload on change.
+## USER CREATION
 
-## USER CREATIOn
 ```bash
 cd central
 
-docker compose --env-file .env exec service odk-cmd --email name@example.com user-create
-docker compose exec service odk-cmd --email name@example.com  user-promote
+# Create user
+docker compose --env-file .env exec service odk-cmd --email your@email.com user-create
 
+# Promote to admin
+docker compose exec service odk-cmd --email your@email.com user-promote
 ```
 
-name@example.com
-password2026
-
-
-## BASH
+## BASH ACCESS
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec -it service bash 
-
-```
-
-## DB Migartions
-
-```bash
-docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec -it service bash
 ```
 
 ## LOGS
 
 ```bash
+# Service logs
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central logs service -f --tail=50
+
+# Modsecurity audit logs
+tail -f logs/modsecurity/audit.log | jq
 ```
 
 ## TESTS
 
+### Setup Test Database (one-time)
+
 ```bash
-# DB for tests
 docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE ROLE odk_test_user LOGIN PASSWORD 'odk_test_pw'"
 docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE DATABASE odk_integration_test OWNER odk_test_user"
 docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server/docs/sql/vg_app_user_auth.sql
+```
 
-# VG password unit test
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
+### VG Password Unit Test
 
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
+```
 
-## INTEGRATION TESTS
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
+### VG Integration Tests
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js'
+```bash
+# App user auth tests
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && node -v &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-telemetry.js'
+# Org app users tests
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js'
 
+# Telemetry tests
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && node -v && NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-telemetry.js'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && node -v &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-enketo-status.js'
+# Enketo status tests
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && node -v && NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-enketo-status.js'
+```
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/sessions.js'
+### Standard ODK Integration Tests
 
-## Standard ODK Integration tests
- docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api'
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter dot'
+# With different reporters
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter dot'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter min'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter min'
+```
 
+## STOP CONTAINERS
 
-## LOGS
-docker compose logs service -f
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central down
+```
