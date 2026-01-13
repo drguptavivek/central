@@ -21,6 +21,14 @@ services:
       - ../../files/nginx/odk.conf.template:/usr/share/odk/nginx/odk.conf.template:ro
       - ../../files/nginx/client-config.json.template:/usr/share/odk/nginx/client-config.json.template:ro
       - ./files/nginx/dh.pem:/etc/dh/nginx.pem:ro
+      # VG modsecurity nginx configs
+      - ../../files/vg-nginx/vg-nginx-modules.conf:/etc/nginx/modules-enabled/50-vg-nginx-modules.conf:ro
+      - ../../files/vg-nginx/vg-modsecurity-odk.conf:/etc/modsecurity/modsecurity-odk.conf:ro
+      - ../../files/vg-nginx/vg-headers-more.conf:/usr/share/odk/nginx/vg-headers-more.conf:ro
+      # Modsecurity CRS configs
+      - ../../crs/crs-setup.conf.example:/etc/modsecurity/crs/crs-setup.conf:ro
+      - ../../crs/rules:/etc/modsecurity/crs/rules:ro
+      - ../../crs_custom:/etc/modsecurity/custom:ro
     healthcheck:
       test: [ "CMD-SHELL", "nc -z localhost 80 || exit 1" ]
     restart: always
