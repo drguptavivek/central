@@ -1,6 +1,6 @@
 # VG Security Override: Modsecurity/CRS Configuration Only
 #
-# This file contains ONLY security-related configurations (modsecurity, CRS, networks).
+# This file contains ONLY security-related configurations (modsecurity, CRS).
 # For development overrides (live reload, etc.), see docker-compose.dev-overrides.yml
 #
 # Usage:
@@ -24,23 +24,3 @@ services:
       # Security logging
       - ./logs/nginx:/var/log/nginx
       - ./logs/modsecurity:/var/log/modsecurity
-    networks:
-      - default
-      - web
-
-  service:
-    networks:
-      - default
-      - db_net
-      - web
-
-  postgres14:
-    networks:
-      - default
-      - db_net
-
-networks:
-  db_net:
-    external: true
-  web:
-    external: true
