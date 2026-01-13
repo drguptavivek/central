@@ -8,9 +8,6 @@ if [[ $OIDC_ENABLED != 'true' ]] && [[ $OIDC_ENABLED != 'false' ]]; then
   exit 1
 fi
 
-# Ensure expected dirs exist for logging.
-mkdir -p /var/log/modsecurity
-
 /scripts/envsub.awk \
   < /usr/share/odk/nginx/client-config.json.template \
   > /usr/share/nginx/html/client-config.json
@@ -31,44 +28,13 @@ if [ "$SSL_TYPE" != "upstream" ] && [ ! -s "$DH_PATH" ]; then
 fi
 
 SELFSIGN_PATH="/etc/selfsign/live/$DOMAIN"
-if [ "$SSL_TYPE" = "selfsign" ] && { [ ! -s "$SELFSIGN_PATH/privkey.pem" ] || [ ! -s "$SELFSIGN_PATH/fullchain.pem" ]; }; then
+if [ "$SSL_TYPE" = "selfsign" ] && [ ! -s "$SELFSIGN_PATH/privkey.pem" ]; then
   mkdir -p "$SELFSIGN_PATH"
-
-  # Build a SAN list based on DOMAIN and optional EXTRA_SERVER_NAME (handles DNS or IP)
-  SAN_INDEX=1
-  SAN_LINES="DNS.${SAN_INDEX} = ${DOMAIN}"
-  if [ -n "${EXTRA_SERVER_NAME:-}" ]; then
-    SAN_INDEX=$((SAN_INDEX + 1))
-    if echo "$EXTRA_SERVER_NAME" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
-      SAN_LINES="${SAN_LINES}\nIP.1 = ${EXTRA_SERVER_NAME}"
-    else
-      SAN_LINES="${SAN_LINES}\nDNS.${SAN_INDEX} = ${EXTRA_SERVER_NAME}"
-    fi
-  fi
-
-  cat > /tmp/selfsign.conf <<EOF
-[ req ]
-default_bits       = 2048
-prompt             = no
-default_md         = sha256
-req_extensions     = req_ext
-distinguished_name = dn
-
-[ dn ]
-CN = ${DOMAIN}
-
-[ req_ext ]
-subjectAltName = @alt_names
-
-[ alt_names ]
-${SAN_LINES}
-EOF
-
   openssl req -x509 -newkey rsa:4086 \
+    -subj "/C=XX/ST=XXXX/L=XXXX/O=XXXX/CN=localhost" \
     -keyout "$SELFSIGN_PATH/privkey.pem" \
     -out "$SELFSIGN_PATH/fullchain.pem" \
-    -days 3650 -nodes -sha256 \
-    -config /tmp/selfsign.conf
+    -days 3650 -nodes -sha256
 fi
 
 # start from fresh templates in case ssl type has changed
