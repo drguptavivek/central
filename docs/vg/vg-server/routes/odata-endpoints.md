@@ -369,28 +369,433 @@ SecRule REQUEST_URI "@rx \.svc/Submissions$" \
 
 ---
 
-## Security Considerations
+## Client Webapp Usage
 
-### OData Injection Risks
+### Where OData is Used in the Client
 
-**SQL Injection:** LOW risk
-- Backend uses parameterized queries (Slonik)
-- OData queries are parsed, not concatenated
+**1. OData "Analyze" Modal** (`client/src/components/odata/analyze.vue`)
 
-**DoS via Complex Queries:** MEDIUM risk
-- OData supports nested `$filter` expressions
-- Consider query complexity limits
+Purpose: Connect external tools to OData data feeds
 
-**Data Scraping:** MEDIUM risk
-- OData allows full data export
-- Consider rate limiting per project
+**Supported Tools:**
+- **Microsoft Power BI** - Business intelligence dashboards
+- **Microsoft Excel** - Data analysis via Power Query
+- **Python (pyODK)** - Official Python client for automation
+- **R (ruODK)** - Community R package for data science
+- **Other/API** - Generic OData clients
 
-### Current Protections
+**UI Behavior:**
+- Modal displays OData URL for copy-paste
+- Shows tool-specific help documentation
+- **DISABLED when OIDC is enabled** (`v-if="!config.oidcEnabled"`)
+- Accessible from submission view "Connect Data" button
 
-1. **Authentication required:** Field Key or Bearer token
-2. **Authorization checked:** Can only query accessible data
-3. **Parameterized queries:** No SQL injection possible
-4. **WAF exclusion:** Only disables false positive detection
+**2. Submission Table View** (`client/src/components/submission/table-view.vue`)
+
+Purpose: Internal OData client for fetching submission data
+
+**Usage:**
+- Calls `apiPaths.odataSubmissions()` for data
+- Uses `$filter`, `$top`, `$skip`, `$select`, `$orderby` parameters
+- Implements pagination with `$skiptoken` for server-driven paging
+- Filters by `__system/submissionDate` and `__system/deletedAt`
+
+**Request Example:**
+```
+GET /v1/projects/1/forms/basic.svc/Submissions?
+  $top=250&
+  $skip=0&
+  $filter=__system/submissionDate le '2026-01-14T12:00:00Z' and (__system/deletedAt eq null or __system/deletedAt gt '2026-01-14T12:00:00Z')&
+  $select=__id,__system,name,age&
+  $orderby=__system/submissionDate desc&
+  $wkt=true&
+  $count=true
+```
+
+**3. Entity Data View** (`client/src/components/dataset/entities.vue`)
+
+Purpose: View and manage entity datasets
+
+**Usage:**
+- Calls `apiPaths.odataEntitiesSvc()` for entity data
+- Similar pagination and filtering as submissions
+
+---
+
+## Security Analysis
+
+### SQL Injection Risk: **NONE** ✅
+
+**Why OData is Safe from SQL Injection:**
+
+The OData implementation uses **Slonik ORM** with parameterized queries. The filter syntax is parsed into an AST by `odata-v4-parser`, then transformed into Slonik SQL fragments.
+
+**Code Evidence:**
+
+**1. OData Filter Transformation** (`server/lib/data/odata-filter.js:10-110`)
+
+```javascript
+const { sql } = require('slonik');
+const odataParser = require('odata-v4-parser');
+
+const odataFilter = (expr, odataToColumnMap) => {
+  // Parses OData expression into AST
+  const op = (node) => {
+    if (node.type === 'FirstMemberExpression') {
+      // Only allow whitelisted fields
+      if (odataToColumnMap.has(node.raw)) {
+        return sql.identifier(odataToColumnMap.get(node.raw).split('.'));
+      } else {
+        throw Problem.internal.unsupportedODataField({ text: node.raw });
+      }
+    } else if (node.type === 'Literal') {
+      // Safely extract literal value
+      return (node.raw === 'null') ? null
+        : (/^'.*'$/.test(node.raw)) ? node.raw.slice(1, node.raw.length - 1)
+          : node.raw;
+    } else if (node.type === 'EqualsExpression') {
+      // Use Slonik's parameterized comparison
+      return booleanOp(sql`${left} IS NOT DISTINCT FROM ${right}`);
+    } else if (node.type === 'LesserThanExpression') {
+      return booleanOp(sql`${op(node.value.left)} < ${op(node.value.right)}`);
+    }
+    // ... more operators
+  };
+  return op(parseOdataExpr(expr));
+};
+```
+
+**2. Field Whitelisting** (`server/lib/data/odata-filter.js:66-71`)
+
+```javascript
+if (node.type === 'FirstMemberExpression' || node.type === 'RootExpression') {
+  if (odataToColumnMap.has(node.raw)) {
+    // ONLY whitelisted fields allowed
+    return sql.identifier(odataToColumnMap.get(node.raw).split('.'));
+  } else {
+    // Reject unknown fields
+    throw Problem.internal.unsupportedODataField({ text: node.raw });
+  }
+}
+```
+
+**3. Authorization Enforcement** (`server/lib/resources/odata.js:80-85`)
+
+```javascript
+odataResource('/projects/:projectId/forms/:xmlFormId.svc', false, (Forms, auth, params) =>
+  Forms.getByProjectAndXmlFormId(params.projectId, params.xmlFormId, Form.PublishedVersion)
+    .then(getOrNotFound)
+    .then(ensureDef)
+    .then((form) => auth.canOrReject('submission.read', form))); // ← PERMISSION CHECK
+```
+
+**4. Entity Authorization** (`server/lib/resources/odata-entities.js:43-46`)
+
+```javascript
+service.get('/projects/:projectId/datasets/:name.svc/Entities', endpoint.odata.json(async ({ Datasets, Projects }, { auth, params }) => {
+  const project = await Projects.getById(params.projectId).then(getOrNotFound);
+  await auth.canOrReject('entity.list', project); // ← PERMISSION CHECK
+  // ...
+}));
+```
+
+**What This Means:**
+- ✅ All SQL queries are parameterized via Slonik's `sql` template literal
+- ✅ Only fields in `odataToColumnMap` can be queried (whitelist validation)
+- ✅ Users must have `submission.read` or `entity.list` permission
+- ✅ CRS 942290 exclusion is SAFE because no SQL injection is possible
+
+---
+
+### DoS via Complex Queries: **LOW-MEDIUM** ⚠️
+
+**Attack Vector:**
+- Nested `$filter` expressions: `?$filter=((a eq 1 and b eq 2) or (c eq 3 and d eq 4))`
+- Deep `$expand` operations (not heavily used in current implementation)
+- No query complexity limit found in code
+
+**Current Protections:**
+- `$top` parameter limits results (default: Infinity, should be capped)
+- `$skip` parameter for offset
+- `$skiptoken` for server-driven pagination
+
+**Recommendation:**
+Add query complexity limits to prevent parser DoS:
+```javascript
+// server/lib/util/odata.js
+const MAX_FILTER_DEPTH = 10;
+const MAX_FILTER_NODES = 50;
+```
+
+---
+
+### Data Scraping: **MEDIUM** ⚠️
+
+**Attack Vector:**
+- Authenticated users can export all data with `$filter=__system/deletedAt eq null`
+- No rate limiting per project
+- OData URLs can be shared externally once authenticated
+
+**Current Protections:**
+- Authentication required (Field Key or Bearer token)
+- Authorization enforced per form/dataset
+- Disabled when OIDC is enabled (client-side check)
+
+**Recommendation:**
+- Add per-project rate limiting
+- Consider audit logging for OData access
+- Monitor for bulk export patterns
+
+---
+
+## Can OData be Disabled as an Attack Vector?
+
+### Current State
+
+**Client-Side:**
+- OData modal is **ALREADY DISABLED** when OIDC is enabled
+- Code: `v-if="!config.oidcEnabled"` in `client/src/components/odata/analyze.vue`
+
+**Server-Side:**
+- OData endpoints are **ALWAYS ACTIVE** regardless of OIDC setting
+- No server-side disable mechanism exists
+
+### Options to Disable OData
+
+#### Option 1: Client-Side Only (Current Status)
+
+**Impact:**
+- Web UI won't show OData connection modal
+- External tools can still access OData if they have URL + credentials
+- No code changes needed (already implemented)
+
+**Security:**
+- ⚠️ **NOT SUFFICIENT** - endpoints still accessible via direct API calls
+
+#### Option 2: Server-Side Middleware (Recommended)
+
+**Implementation:**
+
+```javascript
+// server/lib/http/endpoint.js
+// Add to odata endpoint definition:
+
+const odataResource = (base, draft, getForm) => {
+  // Check if OIDC is enabled
+  service.get(base, endpoint.odata.json(({ Forms, env }, { auth, params, originalUrl }) => {
+    if (env.oidcEnabled) {
+      throw Problem.user.notFound(); // or Problem.user.featureDisabled()
+    }
+    return getForm(Forms, auth, params)
+      // ... rest of endpoint
+  }));
+};
+```
+
+**Impact:**
+- OData endpoints return 404 when OIDC is enabled
+- External tools cannot access OData
+- Requires server code change
+
+**Security:**
+- ✅ **EFFECTIVE** - endpoints completely disabled
+
+#### Option 3: Project-Level Flag (Flexible)
+
+**Implementation:**
+
+```sql
+-- Add to projects table:
+ALTER TABLE projects ADD COLUMN odata_enabled BOOLEAN NOT NULL DEFAULT true;
+```
+
+```javascript
+// server/lib/resources/odata.js
+service.get(base, endpoint.odata.json(async ({ Forms, Projects }, { auth, params }) => {
+  const project = await Projects.getById(params.projectId);
+  if (!project.odataEnabled) {
+    throw Problem.user.featureDisabled();
+  }
+  // ... rest of endpoint
+}));
+```
+
+**Impact:**
+- Per-project OData enable/disable
+- Allows selective OData access
+- Requires database migration + UI changes
+
+**Security:**
+- ✅ **MOST FLEXIBLE** - granular control per project
+
+---
+
+## Access Restriction Options
+
+### Current Access Controls
+
+| Control | Implementation | Effectiveness |
+|---------|----------------|---------------|
+| **Authentication** | Field Key / Bearer token | ✅ High |
+| **Authorization** | `submission.read` / `entity.list` | ✅ High |
+| **Field Whitelisting** | `odataToColumnMap` validation | ✅ High |
+| **Parameterized Queries** | Slonik ORM | ✅ High |
+| **OIDC Disable** | Client-side only | ⚠️ Low |
+
+### Recommended Additional Restrictions
+
+#### 1. IP-Based Restrictions
+
+**WAF Config:**
+```nginx
+# Only allow specific IPs to access OData
+SecRule REQUEST_URI "@rx \.svc" \
+    "id:3001,phase:1,deny,status:403, \
+    t:ipMatch,ipMatchFromFile:/etc/modsecurity/odata-allowlist.txt"
+```
+
+**Use Case:**
+- Restrict OData to known office IPs
+- Block external access while keeping API available
+
+#### 2. Rate Limiting (WAF-Level)
+
+**Per-User Rate Limit:**
+```nginx
+# Limit OData requests per user/session
+SecRule REQUEST_URI "@rx \.svc/Submissions$" \
+    "id:3002,phase:1,deny,status:429, \
+    setvar:session.odata_counter=+1,expirevar:session.odata_counter=60, \
+    t:count,deny,msg='OData rate limit exceeded'"
+```
+
+**Per-Project Rate Limit:**
+```nginx
+# Limit requests per project ID
+SecRule REQUEST_URI "@rx ^/v1/projects/(\d+)/.*\.svc" \
+    "id:3003,phase:1,deny,status:429, \
+    setvar:ip.odata_project_%{MATCHED_VAR}=+1,expirevar:ip.odata_project_%{MATCHED_VAR}=60, \
+    t:count,deny,msg='Project OData rate limit exceeded'"
+```
+
+#### 3. Query Complexity Limits
+
+**Server-Side:**
+```javascript
+// server/lib/data/odata-filter.js
+const countNodes = (node) => {
+  if (!node || !node.type) return 0;
+  let count = 1;
+  if (node.value) {
+    if (node.value.left) count += countNodes(node.value.left);
+    if (node.value.right) count += countNodes(node.value.right);
+    if (node.value.parameters) {
+      count += node.value.parameters.reduce((sum, p) => sum + countNodes(p), 0);
+    }
+  }
+  return count;
+};
+
+const odataFilter = (expr, odataToColumnMap) => {
+  const ast = parseOdataExpr(expr);
+  const nodeCount = countNodes(ast);
+  if (nodeCount > MAX_FILTER_NODES) {
+    throw Problem.user.unparseableODataExpression({
+      reason: `Filter too complex (max ${MAX_FILTER_NODES} nodes)`
+    });
+  }
+  // ... rest of function
+};
+```
+
+#### 4. Result Size Limits
+
+**Current:**
+- `$top` parameter limits results (default: Infinity)
+- No server-side cap found
+
+**Recommended:**
+```javascript
+// server/lib/util/odata.js
+const extractPaging = (query) => {
+  const parsedLimit = parseInt(query.$top, 10);
+  // Cap at 10,000 records per request
+  const limit = Math.min(Number.isNaN(parsedLimit) ? 1000 : parsedLimit, 10000);
+  // ...
+};
+```
+
+#### 5. Audit Logging
+
+**Implementation:**
+```javascript
+// server/lib/resources/odata.js
+service.get(`${base}/:table`, endpoint.odata.json(async ({ Forms, Submissions, env }, { auth, params, query }) => {
+  // Log OData access for audit
+  await Audit.log(auth.actor(), 'odata.read', {
+    projectId: params.projectId,
+    formId: params.xmlFormId,
+    table: params.table,
+    filter: query.$filter,
+    top: query.$top
+  });
+  // ... rest of endpoint
+}));
+```
+
+---
+
+## Summary and Recommendations
+
+### Security Assessment: **LOW RISK** ✅
+
+| Threat | Risk Level | Mitigation Status |
+|--------|------------|-------------------|
+| SQL Injection | **NONE** | ✅ Slonik parameterized queries |
+| Authorization Bypass | **NONE** | ✅ `auth.canOrReject()` enforced |
+| Field Injection | **NONE** | ✅ Whitelist validation |
+| DoS via Complex Queries | **LOW-MEDIUM** | ⚠️ Add query complexity limits |
+| Data Scraping | **MEDIUM** | ⚠️ Add rate limiting |
+| CRS False Positives | **NONE** | ✅ Rule 942290 exclusion is safe |
+
+### Current CRS Exclusion: **SAFE TO KEEP** ✅
+
+**Rule 942290** (SQLi detection) exclusion for `.svc` endpoints is **SAFE** because:
+- Slonik ORM prevents SQL injection via parameterized queries
+- OData filter is parsed into AST, not concatenated
+- Only whitelisted fields are allowed
+- No SQL injection possible despite SQL-like syntax
+
+### Recommended Actions
+
+| Priority | Action | Impact |
+|----------|--------|--------|
+| **HIGH** | Keep CRS 942290 exclusion | Prevents false positives |
+| **HIGH** | Add server-side OIDC disable | Disables OData when not needed |
+| **MEDIUM** | Add per-project rate limiting | Prevents abuse |
+| **MEDIUM** | Add query complexity limits | Prevents DoS |
+| **LOW** | Add audit logging | Compliance monitoring |
+| **LOW** | Add IP-based restrictions | Defense in depth |
+
+### Can OData Be Disabled?
+
+**Short Answer:** Yes, but requires server-side changes.
+
+**Options:**
+1. **Quick Fix:** Disable OIDC (client-side OData already disabled)
+2. **Server Fix:** Add middleware to return 404 when OIDC enabled
+3. **Flexible Fix:** Add per-project `odata_enabled` flag
+
+**Impact of Disabling:**
+- ✅ Eliminates OData attack surface
+- ❌ Breaks Power BI, Excel, pyODK, ruODK integration
+- ❌ Breaks internal client submission table view (uses OData)
+
+**Recommendation:**
+If OData is not needed in your deployment:
+1. Add server-side middleware to disable when OIDC enabled
+2. Update client submission table to use REST API instead of OData
+3. Monitor for any external tool integrations that may depend on OData
 
 ---
 
@@ -428,3 +833,7 @@ SecRule REQUEST_URI "@rx \.svc/Submissions$" \
 - [ ] Load levels marked (HIGH for feeds)
 - [ ] Security risks assessed
 - [ ] Current WAF config documented
+- [ ] Client webapp usage documented
+- [ ] SQL injection proof provided (Slonik)
+- [ ] OData disable options documented
+- [ ] Access restriction options documented
