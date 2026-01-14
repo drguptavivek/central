@@ -644,7 +644,384 @@ service.get(base, endpoint.odata.json(async ({ Forms, Projects }, { auth, params
 
 ### Recommended Additional Restrictions
 
-#### 1. IP-Based Restrictions
+### 1. Rate Limiting (HIGH PRIORITY) 🔴
+
+**Current Status:**
+- ❌ **NO rate limiting on OData endpoints** (security gap)
+- ✅ Login endpoints have rate limiting (20/15min → 30min lock)
+- ❌ No WAF-level rate limiting in nginx config
+
+**Why Rate Limiting is Needed:**
+
+| Threat | Risk Level | Attack Vector |
+|--------|------------|---------------|
+| **Data Scraping** | **HIGH** | Authenticated user exports all data with `$top=10000` + pagination |
+| **DoS via Complex Queries** | **MEDIUM** | Nested `$filter` expressions exhaust database CPU |
+| **Automated Tool Abuse** | **MEDIUM** | Power BI/Excel auto-refresh every minute |
+
+**Attack Example - Data Scraping:**
+```bash
+# Authenticated user can export ALL data without rate limiting:
+curl "https://central.example.com/v1/projects/1/forms/basic.svc/Submissions?$filter=__system/deletedAt%20eq%20null&$top=10000"
+
+# Repeated with pagination (no limit on requests):
+curl "https://central.example.com/v1/projects/1/forms/basic.svc/Submissions?$filter=__system/deletedAt%20eq%20null&$top=10000&$skip=10000"
+curl "https://central.example.com/v1/projects/1/forms/basic.svc/Submissions?$filter=__system/deletedAt%20eq%20null&$top=10000&$skip=20000"
+# ... continues indefinitely
+```
+
+**Impact:**
+- Unauthorized bulk data export
+- Privacy violations (GDPR, HIPAA)
+- Competitive intelligence theft
+- Bandwidth exhaustion
+- Database performance degradation
+
+---
+
+### Rate Limiting Options: Separation of Concerns
+
+**Important:** Avoid multiple rate limiting layers for the same purpose - this causes configuration conflicts and difficult debugging.
+
+**Recommended Approach - Choose ONE primary method per concern:**
+
+| Concern | Layer | What It Handles | Why |
+|----------|-------|-----------------|-----|
+| **Brute Force Protection** | **Nginx** | IP-based request limits | Fastest, blocks at edge, protects all layers |
+| **Business Logic Limits** | **Application** | User/project quotas | Per-user limits, project overrides, configurable |
+| **Security Rules** | **ModSecurity** | SQLi, XSS, attack patterns | CRS integration, NOT rate limiting |
+
+**What NOT to do:**
+- ❌ Don't use ModSecurity for rate limiting (Nginx is simpler and faster)
+- ❌ Don't use both Nginx AND ModSecurity for same rate limits (conflicts)
+- ❌ Don't rely solely on app-level for brute force protection (too slow)
+
+**Recommended Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        LAYER SEPARATION                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌─────────────┐    ┌──────────────┐    ┌──────────────────┐   │
+│  │   NGINX      │    │  ModSecurity │    │   Application    │   │
+│  │   Edge       │    │  WAF         │    │   Server         │   │
+│  └──────┬──────┘    └──────┬───────┘    └────────┬─────────┘   │
+│         │                  │                     │              │
+│         │                  │                     │              │
+│  ┌──────▼──────────────────▼─────────────────────▼──────────┐  │
+│  │              RATE LIMITING RESPONSIBILITY                 │  │
+│  ├──────────────────────────────────────────────────────────┤  │
+│  │  Nginx: IP-based brute force protection (20 req/min)    │  │
+│  │  ModSecurity: SQLi, XSS, attack patterns (NO rate limit)│  │
+│  │  Application: User/project quotas (100 req/min/user)    │  │
+│  └──────────────────────────────────────────────────────────┘  │
+│                                                                   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Implementation Options (Choose ONE or TWO complementary):**
+
+| Option | Layers | When to Use | Complexity |
+|--------|--------|-------------|------------|
+| **Nginx Only** | Nginx | Simple deployment, IP-based limits only | Low |
+| **Nginx + Application** | Nginx + App | Production, need user-based limits | Medium |
+| **ModSecurity + Application** | WAF + App | Already using WAF, need detailed logging | Medium |
+
+**Recommendation for Most Deployments:**
+
+```
+Nginx (IP brute force) + Application (User/project quotas)
+```
+
+- **Nginx** handles IP-based limits (fast, protects against DoS)
+- **Application** handles user-based limits (business logic, configurable)
+- **ModSecurity** handles security rules (SQLi, XSS) but NOT rate limiting
+
+This separation ensures:
+✅ Clear responsibility for each layer
+✅ No configuration conflicts
+✅ Easier debugging
+✅ Best performance
+
+---
+
+### Option A: Nginx Native Rate Limiting (Recommended for Simplicity)
+
+**File:** `files/nginx/odk.conf.template`
+
+**Pros:** Simpler configuration, battle-tested, fastest performance
+
+```nginx
+# ============================================================================
+# Nginx Native Rate Limiting for OData Endpoints
+# Add to http block in odk.conf.template
+# ============================================================================
+
+# Define rate limit zones in http block (outside server block)
+http {
+    # Zone for OData endpoints (per IP) - 100 req/min
+    limit_req_zone $binary_remote_addr zone=odata_zone:10m rate=100r/m;
+
+    # Zone for submission endpoints (per IP) - 50 req/min
+    limit_req_zone $binary_remote_addr zone=submission_zone:10m rate=50r/m;
+
+    # Zone for form list (per IP) - 20 req/min
+    limit_req_zone $binary_remote_addr zone=formlist_zone:10m rate=20r/m;
+
+    # Zone for general project access (per IP) - 200 req/min
+    limit_req_zone $binary_remote_addr zone=project_zone:10m rate=200r/m;
+
+    # Zone for complex queries (long query strings) - 10 req/min
+    limit_req_zone $binary_remote_addr zone=complex_zone:10m rate=10r/m;
+}
+
+# ============================================================================
+# Apply rate limiting to OData endpoints
+# Add inside server block
+# ============================================================================
+
+server {
+    # Apply rate limiting to OData endpoints
+    location ~ ^/v1/.*\.svc {
+        # Stricter limit for Submissions feed (highest traffic)
+        location ~ Submissions$ {
+            limit_req zone=submission_zone burst=10 nodelay;
+            limit_req_status 429;
+        }
+
+        # Standard OData limit (burst up to 20, no delay)
+        limit_req zone=odata_zone burst=20 nodelay;
+        limit_req_status 429;
+
+        # Stricter limit for complex queries (>500 char query string)
+        if ($args ~ ".{500,}") {
+            limit_req zone=complex_zone burst=5 nodelay;
+        }
+
+        # Pass to backend (existing config)
+        # ...
+    }
+
+    # Apply rate limiting to submission endpoints
+    location ~ ^/v1/.*\/submission$ {
+        limit_req zone=submission_zone burst=10 nodelay;
+        limit_req_status 429;
+        # Pass to backend (existing config)
+        # ...
+    }
+
+    # Apply rate limiting to form list (OpenROSA sync)
+    location ~ ^/v1/\d+/formList$ {
+        limit_req zone=formlist_zone burst=5 nodelay;
+        limit_req_status 429;
+        # Pass to backend (existing config)
+        # ...
+    }
+
+    # Per-project rate limiting (prevents scraping specific projects)
+    location ~ ^/v1/projects/\d+/ {
+        limit_req zone=project_zone burst=30 nodelay;
+        limit_req_status 429;
+        # Pass to backend (existing config)
+        # ...
+    }
+}
+```
+
+**Nginx Rate Limiting Parameters:**
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `zone` | Zone name and shared memory size | `zone=odata_zone:10m` (10MB) |
+| `rate` | Requests per second/minute | `rate=100r/m` = 100 per minute |
+| `burst` | Burst size for temporary spikes | `burst=20` (allow 20 excess requests) |
+| `nodelay` | Don't delay burst requests (reject immediately) | `nodelay` |
+| `limit_req_status` | HTTP status code when limit exceeded | `429` (Too Many Requests) |
+
+**How Burst Works:**
+```
+Without burst:  ████░░░░░ (strict, rejects after limit)
+With burst+nodelay: ███████████████░░ (allows burst, then rejects)
+With burst+delay: ███████████████──── (delays excess requests)
+```
+
+---
+
+### Option B: ModSecurity WAF Rate Limiting (NOT Recommended)
+
+**⚠️ NOT RECOMMENDED** - Use Nginx native rate limiting instead (simpler, faster, less conflicts)
+
+**Only use ModSecurity for rate limiting if:**
+- You already have ModSecurity rules and want detailed audit logging
+- You need per-project tracking at the edge layer
+- You're already comfortable with ModSecurity syntax
+
+**File:** `crs_custom/30-odk-odata-rate-limiting.conf`
+
+```nginx
+# ============================================================================
+# OData Endpoint Rate Limiting
+# Prevents data scraping, DoS, and automated tool abuse
+# ============================================================================
+
+# Per-IP rate limit for OData endpoints (100 requests/minute)
+SecRule REQUEST_URI "@rx \.svc" \
+    "id:3010,phase:1,deny,status:429, \
+    setvar:ip.odata_counter=+1,expirevar:ip.odata_counter=60, \
+    t:count,deny,msg='OData rate limit exceeded (100/60s)'"
+
+# Per-IP rate limit for OData Submissions feed (highest traffic)
+# Stricter limit for the most expensive endpoint
+SecRule REQUEST_URI "@rx \.svc/Submissions$" \
+    "id:3011,phase:1,deny,status:429, \
+    setvar:ip.odata_submissions_counter=+1,expirevar:ip.odata_submissions_counter=60, \
+    t:count,deny,msg='OData Submissions rate limit exceeded (50/60s)', \
+    setvar:ip.odata_submissions_counter=0,expirevar:ip.odata_submissions_counter=60, \
+    t:count,deny"
+
+# Per-project rate limit (prevent scraping of specific projects)
+# Limits requests per project ID to prevent targeted scraping
+SecRule REQUEST_URI "@rx ^/v1/projects/(\d+)/.*\.svc" \
+    "id:3012,phase:1,deny,status:429, \
+    setvar:ip.project_%{MATCHED_VAR}_counter=+1,expirevar:ip.project_%{MATCHED_VAR}_counter=60, \
+    t:count,deny,msg='Project OData rate limit exceeded (200/60s)'"
+
+# Stricter limit for complex queries (large $filter expressions)
+# Limits queries with long filter strings (potential DoS)
+SecRule REQUEST_URI "@rx \.svc\?.{500,}" \
+    "id:3013,phase:1,deny,status=429, \
+    setvar:ip.odata_complex_counter=+1,expirevar:ip.odata_complex_counter=60, \
+    t:count,deny,msg='Complex OData query rate limit exceeded (10/60s)'"
+```
+
+**Recommended Limits by Endpoint:**
+
+| Endpoint Pattern | Limit | Duration | Scope | Priority |
+|------------------|-------|----------|-------|----------|
+| `/v1/.../formList` | 20 | 1min | IP | HIGH (OpenROSA sync) |
+| `/v1/.../.svc/Submissions` | 50 | 1min | IP | HIGH (data feed) |
+| `/v1/.../.svc/Entities` | 100 | 1min | IP | MEDIUM (entities) |
+| `/v1/.../.svc/*` (general) | 100 | 1min | IP | MEDIUM (all OData) |
+| `/v1/.../.svc/*` (complex) | 10 | 1min | IP | HIGH (DoS protection) |
+| `/v1/projects/:id/*` (general) | 200 | 1min | IP | MEDIUM (per-project) |
+
+---
+
+### Option C: Application-Level Rate Limiting (Complementary to Nginx)
+
+**Recommended:** Use with Nginx for complete protection
+- **Nginx** - IP-based brute force protection (edge layer)
+- **Application** - User/project-based quotas (business logic)
+
+**For a production-ready, modular rate limiting system following the VG auth pattern:**
+
+**See:** `docs/vg/vg-server/routes/vg-rate-limiting-design.md` for complete design specification.
+
+**Quick Summary of Modular Design:**
+
+Following the VG fork pattern used for web-user and app-user authentication:
+
+```
+server/lib/
+├── domain/vg-rate-limit.js         # Business logic, orchestration
+├── model/query/vg-rate-limit.js    # Database queries (audits table)
+├── middleware/vg-rate-limit.js     # Express middleware
+└── resources/                       # Existing endpoints use middleware
+```
+
+**Key Features:**
+- ✅ User-based rate limiting (not just IP)
+- ✅ Project-level settings overrides via `vg_settings` table
+- ✅ Configurable limits (per endpoint type)
+- ✅ Uses existing `audits` table (no new tables needed)
+- ✅ Follows established VG patterns
+
+**Example Usage:**
+
+```javascript
+// server/lib/resources/odata.js
+const { odataRateLimit } = require('../middleware/vg-rate-limit');
+
+module.exports = (service, endpoint) => {
+  service.get(`${base}/:table`,
+    odataRateLimit(),  // ← Apply rate limiting
+    endpoint.odata.json(async ({ Forms, Submissions }, { auth, params }) => {
+      // ... existing endpoint code
+    })
+  );
+};
+```
+
+**Settings in Database:**
+
+```sql
+-- Global default
+INSERT INTO vg_settings (key, value) VALUES
+  ('vg_rate_limit_odata_per_minute', '100'),
+  ('vg_rate_limit_enabled', 'true');
+
+-- Project override (stricter)
+INSERT INTO vg_project_settings (project_id, key, value) VALUES
+  (123, 'vg_rate_limit_odata_per_minute', '10');
+
+-- Project disable (trusted project)
+INSERT INTO vg_project_settings (project_id, key, value) VALUES
+  (456, 'vg_rate_limit_enabled', 'false');
+```
+
+**Pros/Cons:**
+
+| Approach | Pros | Cons | When to Use |
+|----------|------|------|-------------|
+| **Nginx Only** | Simple, fast, battle-tested | IP-based only, no user context | Simple deployment |
+| **Nginx + Application** | Best of both: edge protection + business logic | More implementation effort | Production (recommended) |
+| **ModSecurity + Application** | Detailed logging + business logic | More complex syntax | Already heavily using WAF |
+
+**Final Recommendation:**
+
+```
+┌────────────────────────────────────────────────────────────┐
+│  PRODUCTION RECOMMENDATION                                 │
+├────────────────────────────────────────────────────────────┤
+│                                                             │
+│  1. Deploy Nginx native rate limiting (immediate)          │
+│     - Fast, simple, protects all layers                    │
+│     - IP-based limits for brute force protection           │
+│                                                             │
+│  2. Implement modular application-level rate limiting      │
+│     - User-based quotas (per user, not per IP)            │
+│     - Project-level overrides via vg_settings              │
+│     - Follows VG auth pattern (domain/model/middleware)    │
+│                                                             │
+│  3. ModSecurity for security rules only                   │
+│     - SQLi, XSS, attack detection                          │
+│     - NOT for rate limiting (use Nginx instead)            │
+│                                                             │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### Current Rate Limiting in ODK Central
+
+**What EXISTS:**
+| Endpoint Type | Rate Limiting | Implementation |
+|---------------|---------------|----------------|
+| Web User Login (`POST /v1/sessions`) | ✅ Yes | IP: 20/15min → 30min lock; User: 5/5min → 10min lock |
+| App User Login (`POST /v1/projects/:id/app-users/login`) | ✅ Yes | IP: 20/15min → 30min lock |
+| OData queries | ❌ **NO** | None |
+| Submission downloads | ❌ **NO** | None |
+| All other GET endpoints | ❌ **NO** | None |
+
+**Code References:**
+- `server/lib/model/query/vg-web-user-auth.js` - Web user login rate limiting
+- `server/lib/model/query/vg-app-user-ip-rate-limit.js` - App user login rate limiting
+- `server/lib/resources/sessions.js` - Login lockout enforcement
+
+---
+
+### 2. IP-Based Restrictions
 
 **WAF Config:**
 ```nginx
@@ -658,27 +1035,7 @@ SecRule REQUEST_URI "@rx \.svc" \
 - Restrict OData to known office IPs
 - Block external access while keeping API available
 
-#### 2. Rate Limiting (WAF-Level)
-
-**Per-User Rate Limit:**
-```nginx
-# Limit OData requests per user/session
-SecRule REQUEST_URI "@rx \.svc/Submissions$" \
-    "id:3002,phase:1,deny,status:429, \
-    setvar:session.odata_counter=+1,expirevar:session.odata_counter=60, \
-    t:count,deny,msg='OData rate limit exceeded'"
-```
-
-**Per-Project Rate Limit:**
-```nginx
-# Limit requests per project ID
-SecRule REQUEST_URI "@rx ^/v1/projects/(\d+)/.*\.svc" \
-    "id:3003,phase:1,deny,status:429, \
-    setvar:ip.odata_project_%{MATCHED_VAR}=+1,expirevar:ip.odata_project_%{MATCHED_VAR}=60, \
-    t:count,deny,msg='Project OData rate limit exceeded'"
-```
-
-#### 3. Query Complexity Limits
+### 3. Query Complexity Limits
 
 **Server-Side:**
 ```javascript
@@ -747,7 +1104,7 @@ service.get(`${base}/:table`, endpoint.odata.json(async ({ Forms, Submissions, e
 
 ## Summary and Recommendations
 
-### Security Assessment: **LOW RISK** ✅
+### Security Assessment: **LOW-MEDIUM RISK** ⚠️
 
 | Threat | Risk Level | Mitigation Status |
 |--------|------------|-------------------|
@@ -755,8 +1112,11 @@ service.get(`${base}/:table`, endpoint.odata.json(async ({ Forms, Submissions, e
 | Authorization Bypass | **NONE** | ✅ `auth.canOrReject()` enforced |
 | Field Injection | **NONE** | ✅ Whitelist validation |
 | DoS via Complex Queries | **LOW-MEDIUM** | ⚠️ Add query complexity limits |
-| Data Scraping | **MEDIUM** | ⚠️ Add rate limiting |
+| **Data Scraping** | **HIGH** | 🔴 **NO rate limiting** |
+| **Automated Tool Abuse** | **MEDIUM** | 🔴 **NO rate limiting** |
 | CRS False Positives | **NONE** | ✅ Rule 942290 exclusion is safe |
+
+**Critical Gap:** No rate limiting on OData endpoints (login endpoints have rate limiting, but OData does not).
 
 ### Current CRS Exclusion: **SAFE TO KEEP** ✅
 
@@ -768,14 +1128,35 @@ service.get(`${base}/:table`, endpoint.odata.json(async ({ Forms, Submissions, e
 
 ### Recommended Actions
 
-| Priority | Action | Impact |
-|----------|--------|--------|
-| **HIGH** | Keep CRS 942290 exclusion | Prevents false positives |
-| **HIGH** | Add server-side OIDC disable | Disables OData when not needed |
-| **MEDIUM** | Add per-project rate limiting | Prevents abuse |
-| **MEDIUM** | Add query complexity limits | Prevents DoS |
-| **LOW** | Add audit logging | Compliance monitoring |
-| **LOW** | Add IP-based restrictions | Defense in depth |
+| Priority | Action | Impact | Effort |
+|----------|--------|--------|--------|
+| **CRITICAL** | **Add WAF rate limiting for `.svc`** | **Prevents data scraping** | Low |
+| **HIGH** | Keep CRS 942290 exclusion | Prevents false positives | None |
+| **HIGH** | Add WAF rate limiting for `/submission` | Prevents submission spam | Low |
+| **HIGH** | Add WAF rate limiting for `/formList` | Prevents OpenROSA abuse | Low |
+| **MEDIUM** | Add server-side OIDC disable | Disables OData when not needed | Medium |
+| **MEDIUM** | Add query complexity limits | Prevents DoS | Medium |
+| **LOW** | Add app-level rate limiting | User-based limits | Medium |
+| **LOW** | Add audit logging | Compliance monitoring | Low |
+| **LOW** | Add IP-based restrictions | Defense in depth | Low |
+
+### Rate Limiting Implementation Priority
+
+**Immediate (WAF-Level):**
+1. `crs_custom/30-odk-odata-rate-limiting.conf` - 100 req/min per IP for `.svc`
+2. Stricter limit for `.svc/Submissions` - 50 req/min
+3. Stricter limit for complex queries (>500 chars) - 10 req/min
+4. Per-project rate limiting - 200 req/min
+
+**Short-term (Application-Level):**
+1. Add user-based rate limiting for OData queries
+2. Add query complexity limits (max filter depth, max nodes)
+3. Add result size caps (max `$top` value)
+
+**Long-term (Monitoring):**
+1. Audit logging for all OData access
+2. Monitoring for bulk export patterns
+3. Alerts for unusual OData activity
 
 ### Can OData Be Disabled?
 
@@ -818,10 +1199,12 @@ If OData is not needed in your deployment:
 
 ## Related Documentation
 
+- **Modular Rate Limiting Design:** `docs/vg/vg-server/routes/vg-rate-limiting-design.md` (VG pattern approach)
 - **Main WAF Inventory:** `docs/vg/modsecurity-waf-api-inventory.md`
 - **Submission Endpoints:** `docs/vg/vg-server/routes/core-api-forms-submissions.md`
 - **Entity Endpoints:** `docs/vg/vg-server/routes/core-api-entities-datasets.md`
 - **CRS Exclusions:** `docs/vg/vg_modsecurity_crs_exclusions.md`
+- **App User Auth:** `docs/vg/vg-server/routes/app-user-auth.md` (VG modular pattern reference)
 
 ---
 
@@ -837,3 +1220,5 @@ If OData is not needed in your deployment:
 - [ ] SQL injection proof provided (Slonik)
 - [ ] OData disable options documented
 - [ ] Access restriction options documented
+- [ ] Rate limiting options documented (Nginx, WAF, Application)
+- [ ] Separation of concerns clarified
