@@ -1199,6 +1199,7 @@ If OData is not needed in your deployment:
 
 ## Related Documentation
 
+- **SQL Injection Protection:** `docs/vg/vg-server/routes/odata-sql-injection-protection.md` (Detailed analysis)
 - **Modular Rate Limiting Design:** `docs/vg/vg-server/routes/vg-rate-limiting-design.md` (VG pattern approach)
 - **Main WAF Inventory:** `docs/vg/modsecurity-waf-api-inventory.md`
 - **Submission Endpoints:** `docs/vg/vg-server/routes/core-api-forms-submissions.md`
