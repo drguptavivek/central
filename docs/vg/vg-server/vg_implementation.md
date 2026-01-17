@@ -117,10 +117,10 @@ docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test -c "CREA
 docker exec -i central-postgres14-1 psql -U odk -c "ALTER ROLE odk_test_user SET search_path =public;"
 docker exec -i central-postgres14-1 psql -U odk -c "ALTER DATABASE odk_integration_test SET  search_path = public;"
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'PGPASSWORD=odk_test_pw psql -h postgres14 -U  odk_test_user -d odk_integration_test -c "SHOW search_path;"'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'PGPASSWORD=odk_test_pw psql -h postgres14 -U  odk_test_user -d odk_integration_test -c "SHOW search_path;"'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_ENV=test NODE_CONFIG_ENV=test   BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_ENV=test NODE_CONFIG_ENV=test   BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_ENV=test NODE_CONFIG_ENV=test   BCRYPT=insecure npx mocha --recursive test/integration/api/vg-telemetry.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_ENV=test NODE_CONFIG_ENV=test   BCRYPT=insecure npx mocha --recursive test/integration/api/vg-telemetry.js'
 
 ```

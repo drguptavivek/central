@@ -13,17 +13,7 @@ This file captures local workflow conventions and key customizations for the
 - **docker-compose.yml**: Pure upstream v2025.4.1 (NO VG modifications)
 - **docker-compose.override.yml**: Modsecurity/CRS security ONLY
 - **docker-compose.dev-overrides.yml**: Dev overrides (saved for reference)
-- **docker-compose.dev.yml**: Profile management (separate)
-- **files/nginx/setup-odk.sh**: Pure upstream (no modifications)
-- **Server submodule**: VG vg-work with auth system and security features
-- **Client submodule**: VG vg-work with UI customizations
-- **Modsecurity**: Configs in crs/ and crs_custom/ submodules (volume-mounted)
-
-### Philosophy
-- **Keep central minimal**: All VG features in submodules
-- **Isolate security**: All modsecurity/CRS configs in docker-compose.override.yml
-- **Separate dev**: Dev overrides in docker-compose.dev-overrides.yml (not auto-loaded)
-- **Pure upstream files**: Easy to merge future upstream updates
+- **docker-compose.vg-dev.yml**: Profile management (separate) and HMR dev overrides
 
 ### Usage
 ```bash
@@ -31,7 +21,7 @@ This file captures local workflow conventions and key customizations for the
 docker compose up
 
 # Development (with modsecurity + dev tools)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml up
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 ```
 
 ### Future Upstream Updates
@@ -349,7 +339,7 @@ Run from central(meta) folder
 docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 
 # LOGS
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central logs service -f --tail=50
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml logs service -f --tail=50
 
 # TESTS
 # DB for tests
@@ -357,15 +347,17 @@ docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE ROLE o
 docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE DATABASE odk_integration_test OWNER odk_test_user"
 docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server/docs/sql/vg_app_user_auth.sql
 
-# VG password unit test
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
+# Test password util
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
 
-# INTEGRATION TESTS
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
+# Test app-user auth
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js'
+# Test org app users
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk  && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && node -v &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-telemetry.js'
+# Test telemetry
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && node -v &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-telemetry.js'
 ```
 
 ---

@@ -87,7 +87,7 @@ Add this line:
 |------|---------|
 | `docker-compose.yml` | Pure upstream v2025.4.1 |
 | `docker-compose.override.yml` | VG security configs (modsecurity) |
-| `docker-compose.dev.yml` | Profile management (same as upstream) |
+| `docker-compose.vg-dev.yml` | Profile management (same as upstream) |
 
 ### Build and Start Commands
 
@@ -95,19 +95,19 @@ Add this line:
 cd central
 
 # Build all services
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central build postgres14 enketo_redis_main enketo_redis_cache pyxform enketo mail secrets service
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml build postgres14 enketo_redis_main enketo_redis_cache pyxform enketo mail secrets service
 
 # Start services
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 
 # Install npm dependencies
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central run --rm service npm install
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml run --rm service npm install
 
 # Apply database migrations
 docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 
 # Start service and nginx
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d service nginx
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d service nginx
 ```
 
 **Backend is now running at:** `https://central.local`
@@ -363,23 +363,23 @@ docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server
 
 ```bash
 # Run a specific unit test
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
 ```
 
 ### Backend Integration Tests
 
 ```bash
 # Run a specific integration test file
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-app-user-auth.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-app-user-auth.js'
 
 # Run all integration tests (minimal output)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter min'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter min'
 
 # Run all integration tests (dot reporter)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter dot'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter dot'
 
 # Run all integration tests (default reporter - verbose)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api'
 ```
 
 ### Frontend Tests
@@ -402,14 +402,14 @@ npm run test:watch
 
 ```bash
 # Follow service logs
-docker compose logs service -f
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml logs -f service
 
 # Follow all logs
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central logs -f
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml logs -f
 
 # View specific service logs
-docker compose logs nginx -f
-docker compose logs postgres14 -f
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml logs -f nginx
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml logs -f postgres14
 
 # Modsecurity audit logs
 tail -f logs/modsecurity/audit.log | jq
@@ -419,16 +419,16 @@ tail -f logs/modsecurity/audit.log | jq
 
 ```bash
 # Restart backend service (after code changes if nodemon doesn't pick up)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central restart service
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml restart service
 
 # Restart frontend dev server
-docker compose restart client-dev
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml restart client
 ```
 
 ### Stop All Services
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central down
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml down
 ```
 
 ### Access Database

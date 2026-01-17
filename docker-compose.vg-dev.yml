@@ -1,5 +1,17 @@
 # Assumption: This file will be merged by `docker compose`
 #
+# CUSTOMIZATIONS FROM UPSTREAM:
+# 1. client service: Added to run Vite dev server (HMR) within Docker.
+#    - Runs internally on port 8989 (not exposed to host).
+#    - Depends on nginx.
+# 2. nginx service:
+#    - Mounts `odk.conf.dev.template` to proxy "/" to the client service.
+#    - Aliased to ${DOMAIN} for internal networking.
+# 3. Dynamic Environment:
+#    - Uses ${DOMAIN}, ${PYXFORM_PORT}, ${POSTGRES_PORT} from .env.
+# 4. Enketo:
+#    - Configured to trust ${DOMAIN} via extra_hosts.
+#
 # What it does:
 # Sets profiles for each service depending on whether that 
 # service is required for Central development or not.
@@ -8,39 +20,47 @@
 # nb: can't replace depends_on so we have removed all the values, ok for dev
 services:
   postgres14:
-    profiles:
-      - central
     ports:
-      - 5432:5432
+      - "${POSTGRES_PORT:-5434}:5432"
   postgres:
-    profiles:
-      - central
     image: debian:bullseye
     command: /bin/sh -c 'mkdir -p /var/lib/postgresql/14/data && touch /var/lib/postgresql/14/.postgres14-upgrade-successful'
   mail:
-    profiles:
-      - none
   service:
-    profiles:
-      - none
-  nginx:
-    profiles:
-      - none
-  pyxform:
-    profiles:
-      - central
     ports:
-      - 5001:80
+      - "8383:8383"
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.dev
+    # Ports are NOT published to host, only internal network
+    expose:
+      - "8989"
+    volumes:
+      - ./client:/usr/src/app
+      - /usr/src/app/node_modules
+    networks:
+      default:
+        aliases:
+          - client
+    depends_on:
+      - nginx
+  nginx:
+    volumes:
+      - ./files/nginx/odk.conf.dev.template:/usr/share/odk/nginx/odk.conf.template
+    networks:
+      default:
+        aliases:
+          - ${DOMAIN}
+  pyxform:
+    ports:
+      - "${PYXFORM_PORT:-8085}:80"
   secrets:
-    profiles:
-      - central
     volumes:
       - dev_secrets:/etc/secrets
     working_dir: /etc/secrets
     command: /bin/sh -c 'echo "s0m3v3rys3cr3tk3y" > enketo-secret && echo "this $3cr3t key is crackable" > enketo-less-secret && echo "enketorules" > enketo-api-key'
   enketo:
-    profiles:
-      - central
     volumes:
       - dev_secrets:/etc/secrets
     depends_on: !override
@@ -50,18 +70,14 @@ services:
       - ENV=DEV
       - ENKETO_SECRETS=danger-insecure
     extra_hosts:
-    - "${DOMAIN}:host-gateway"
+      - "${DOMAIN}:host-gateway"
     ports:
       - 8005:8005
   enketo_redis_main:
-    profiles:
-      - central
     ports:
-      - 6379:6379
+      - 63799:6379
   enketo_redis_cache:
-    profiles:
-      - central
     ports:
-      - 6380:6380
+      - 63800:6380
 volumes:
   dev_secrets:

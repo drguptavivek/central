@@ -283,7 +283,7 @@ The 33 submission test failures are **test environment issues**, not production 
 
 ```bash
 # Run submission tests in isolation
-docker compose --profile central exec service sh -lc \
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc \
   'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha \
   test/integration/api/submissions.js --grep "should save the submission to the appropriate form"'
 

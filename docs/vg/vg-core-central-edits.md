@@ -275,7 +275,7 @@ logs/
 |------|----------|-----|--------------|
 | `docker-compose.yml` | ✅ Exists | ✅ Pure upstream v2025.4.1 | ✅ Yes |
 | `docker-compose.override.yml` | ❌ None | ✅ Security configs | ✅ Yes |
-| `docker-compose.dev.yml` | ✅ Exists | ✅ Same as upstream | ❌ Manual `-f` |
+| `docker-compose.vg-dev.yml` | ✅ Exists | ✅ Same as upstream | ❌ Manual `-f` |
 
 ### Logging Comparison
 
@@ -328,7 +328,7 @@ docker compose up                              # Production only
 docker compose up                              # Production + security (auto-loaded)
 docker compose -f docker-compose.yml \
                -f docker-compose.override.yml \
-               -f docker-compose.dev.yml up    # Full dev stack
+               -f docker-compose.vg-dev.yml up    # Full dev stack
 ```
 
 ### Verification Commands
@@ -336,7 +336,7 @@ docker compose -f docker-compose.yml \
 ```bash
 # Verify pure upstream files
 git diff v2025.4.1 -- docker-compose.yml
-git diff v2025.4.1 -- docker-compose.dev.yml
+git diff v2025.4.1 -- docker-compose.vg-dev.yml
 git diff v2025.4.1 -- files/nginx/setup-odk.sh
 
 # Check VG modifications (only these should show diffs)
@@ -377,7 +377,7 @@ git push origin vg-work
 
 **Should Merge Cleanly:**
 - `docker-compose.yml` - Pure upstream, should have no conflicts
-- `docker-compose.dev.yml` - Same as upstream
+- `docker-compose.vg-dev.yml` - Same as upstream
 - `files/nginx/setup-odk.sh` - Pure upstream
 
 ---
@@ -399,7 +399,7 @@ git push origin vg-work
 
 ### 1. Pure Upstream Base ✅
 - `docker-compose.yml` matches upstream exactly
-- `docker-compose.dev.yml` matches upstream exactly
+- `docker-compose.vg-dev.yml` matches upstream exactly
 - `files/nginx/setup-odk.sh` matches upstream exactly
 
 ### 2. Isolated Security Layer ➕
@@ -448,7 +448,7 @@ git push origin vg-work
 Before committing any changes to this meta-repo, verify:
 
 - [ ] `docker-compose.yml` matches upstream exactly
-- [ ] `docker-compose.dev.yml` matches upstream exactly
+- [ ] `docker-compose.vg-dev.yml` matches upstream exactly
 - [ ] `files/nginx/setup-odk.sh` matches upstream exactly
 - [ ] `files/nginx/odk.conf.template` has only 6 VG lines (marked with `# VG:`)
 - [ ] `.gitmodules` points to VG repos

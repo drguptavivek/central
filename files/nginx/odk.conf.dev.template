@@ -1,0 +1,146 @@
+server {
+  listen 443 default_server ssl;
+  server_tokens off;
+
+  ssl_certificate /etc/nginx/ssl/nginx.default.crt;
+  ssl_certificate_key /etc/nginx/ssl/nginx.default.key;
+
+  return 421;
+}
+
+map "$request_method::$uri$is_args$args" $cache_strategy {
+  # general
+  ~^(GET|HEAD)::/client-config.json$ "revalidate";
+  ~^(GET|HEAD)::/favicon.ico$        "revalidate";
+  ~^(GET|HEAD)::/robots.txt$         "revalidate";
+  ~^(GET|HEAD)::/version.txt$        "revalidate";
+
+  # central-backend
+  ~^(GET|HEAD)::/v1/                 "passthrough";
+  
+  # For dev proxy, everything else is dynamic
+  default "passthrough";
+}
+map $cache_strategy $cache_header_cache_control {
+  "immutable"  "max-age=31536000";
+  "revalidate" "no-cache";
+  "passthrough"  "";
+  default      "no-store";
+}
+map $cache_strategy $cache_header_pragma {
+  "immutable"  "";
+  "revalidate" "no-cache";
+  "passthrough"  "";
+  default      "no-cache";
+}
+map $cache_strategy $cache_header_vary {
+  "immutable"  "Accept-Encoding";
+  "revalidate" "Accept-Encoding";
+  "passthrough"  "";
+  default      "*";
+}
+
+map $args $qp_deliminator {
+  ~.+ "&";
+  default "?";
+}
+
+map $arg_st $redirect_non_single_prefix {
+  ~.+     "${is_args}${args}${qp_deliminator}single=false";
+  default "/new${is_args}${args}";
+}
+
+map $arg_st $redirect_single_prefix {
+  ~.+     "${is_args}${args}";
+  default "/new${is_args}${args}${qp_deliminator}single=true";
+}
+
+# CSP - Simplified for Dev (Vite needs looser rules)
+map $request_uri $central_frontend_csp {
+  default "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;";
+}
+
+server {
+  listen 443 ssl;
+  http2 on;
+  server_name ${DOMAIN};
+
+  ssl_certificate /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/privkey.pem;
+  ssl_trusted_certificate /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
+
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
+  ssl_prefer_server_ciphers off;
+
+  ssl_dhparam /etc/dh/nginx.pem;
+
+  server_tokens off;
+
+  # VG: Enable ModSecurity + OWASP CRS
+  modsecurity on;
+  modsecurity_rules_file /etc/modsecurity/modsecurity-odk.conf;
+
+  # VG: Hardening via headers-more
+  include /usr/share/odk/nginx/vg-headers-more.conf;
+
+  add_header Content-Security-Policy-Report-Only "default-src 'none'; connect-src https://translate.google.com https://translate.googleapis.com; img-src https://translate.google.com; report-uri /csp-report";
+  include /usr/share/odk/nginx/common-headers.conf;
+
+  client_max_body_size 100m;
+
+  gzip on;
+  gzip_comp_level 6;
+  gzip_vary on;
+  gzip_min_length 1024;
+  gzip_http_version 1.1;
+  gzip_types text/plain text/css application/json application/geo+json application/x-javascript application/javascript text/xml application/xml text/csv image/svg+xml;
+  gzip_proxied any;
+
+  # Enketo Configuration.
+  location ~ ^/(?:-|enketo-passthrough)(?:/|$) {
+    rewrite ^/enketo-passthrough(/.*)?$ /-$1 break;
+    proxy_pass http://enketo:8005;
+    proxy_redirect off;
+    proxy_set_header Host $host;
+    proxy_hide_header Vary;
+    proxy_hide_header Cache-Control;
+    proxy_hide_header Content-Security-Policy-Report-Only;
+    add_header Content-Security-Policy-Report-Only "default-src 'none'; connect-src 'self' blob: https://maps.googleapis.com/ https://maps.google.com/ https://maps.gstatic.com/mapfiles/ https://fonts.gstatic.com/ https://fonts.googleapis.com/ https://translate.google.com https://translate.googleapis.com; font-src 'self' https://fonts.gstatic.com/; frame-src 'none'; img-src data: blob: jr: 'self' https://maps.google.com/maps/ https://maps.gstatic.com/mapfiles/ https://maps.googleapis.com/maps/ https://tile.openstreetmap.org/ https://translate.google.com; manifest-src 'none'; media-src blob: jr: 'self'; object-src 'none'; script-src 'unsafe-inline' 'self' https://maps.googleapis.com/maps/api/js/ https://maps.google.com/maps/ https://maps.google.com/maps-api-v3/api/js/; style-src 'unsafe-inline' 'self' https://fonts.googleapis.com/css; style-src-attr 'unsafe-inline'; report-uri /csp-report";
+    include /usr/share/odk/nginx/common-headers.conf;
+  }
+
+  location ~ ^/v\d+/oidc/callback$ {
+    include /usr/share/odk/nginx/common-headers.conf;
+    include /usr/share/odk/nginx/backend.conf;
+  }
+
+  location ~ ^/v\d {
+    # VG: Disable CRS blocking rules for Central API (PATCH/PUT/DELETE methods)
+    modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
+
+    proxy_hide_header Content-Security-Policy-Report-Only;
+    add_header Content-Security-Policy-Report-Only "default-src 'none'; report-uri /csp-report";
+
+    include /usr/share/odk/nginx/common-headers.conf;
+    include /usr/share/odk/nginx/backend.conf;
+  }
+
+  # --- DEV PROXY TO VITE CLIENT ---
+  location / {
+    proxy_pass http://client:8989;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    
+    # Standard headers
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location /csp-report {
+    proxy_pass https://${SENTRY_ORG_SUBDOMAIN}.ingest.sentry.io/api/${SENTRY_PROJECT}/security/?sentry_key=${SENTRY_KEY};
+    proxy_ssl_server_name on;
+  }
+}

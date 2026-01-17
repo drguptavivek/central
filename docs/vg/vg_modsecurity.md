@@ -498,7 +498,7 @@ du -h logs/modsecurity/audit.log
 docker compose up
 
 # Development (with modsecurity + dev tools)
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml up
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up
 ```
 
 ### Verify Modsecurity is Active

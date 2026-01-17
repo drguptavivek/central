@@ -235,13 +235,13 @@ VALUES ('vg_web_user_lock_duration_minutes', '10');
 
 ```bash
 # Test web user login (currently broken)
-docker compose --profile central exec service sh -lc \
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc \
   'curl -X POST http://localhost:8383/v1/sessions \
    -H "Content-Type: application/json" \
    -d '{"email":"alice@getodk.org","password":"password4alice"}"'
 
 # Test app-user login (works)
-docker compose --profile central exec service sh -lc \
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc \
   'curl -X POST http://localhost:8383/v1/projects/1/app-users/login \
    -H "Content-Type: application/json" \
    -d '{"username":"appuser","password":"Password123!"}'

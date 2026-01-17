@@ -35,13 +35,16 @@ VG replaces that model with:
 1. Admin creates an app user in the project (VG UI) with username + phone; the UI generates an initial password and shows it to the admin.
 2. App user logs in with `POST /v1/projects/:projectId/app-users/login` to get a short-lived bearer token (and `expiresAt`).
 3. App user uses the token for subsequent API calls via `Authorization: Bearer <token>` (no cookies).
-4. When the token expires, the app user logs in again to obtain a new token.
+4. When the token expires, the app usdocker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 
-## Data model (server)
+### 3. Apply DB migrations
+```bash
+docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
+```
 
-VG extends app-user auth via sidecar tables (created by `server/docs/sql/vg_app_user_auth.sql`).
-
-- `vg_field_key_auth`: app-user auth profile keyed by `field_keys.actorId` (username, password hash, phone, active flag).
+### 4. Install dependencies
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml run --rm service npm installssword hash, phone, active flag).
 - `vg_settings`: global VG key/value settings (TTL/cap, lockout settings, `admin_pw`, and optional web-user lockout duration).
 - `vg_project_settings`: per-project overrides for selected keys (TTL/cap/admin_pw, and app-user lockout settings).
 - `vg_app_user_sessions`: per-token metadata (ip/user-agent/deviceId/comments) and expiry tracking.

@@ -115,6 +115,8 @@ services:
   pyxform:
     image: 'ghcr.io/getodk/pyxform-http:v4.2.0'
     restart: always
+    ports:
+      - "${PYXFORM_PORT:-8085}:80"
   secrets:
     volumes:
       - secrets:/etc/secrets

@@ -344,15 +344,15 @@ email.to.should.eql([{ address: 'no-reply@getodk.org', name: '' }]);
 
 ```bash
 # VG App-User Tests (Expected Failures)
-docker compose --profile central exec service sh -lc \
+docker compose central exec service sh -lc \
   'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/app-users.js --reporter spec'
 
 # Email/Task Tests (Config Issues)
-docker compose --profile central exec service sh -lc \
+docker compose central exec service sh -lc \
   'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/task/task.js --grep "email" --reporter spec'
 
 # Full Test Suite (Running)
-docker compose --profile central exec service sh -lc \
+docker compose central exec service sh -lc \
   'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/ --reporter json'
 ```
 

@@ -70,12 +70,12 @@ cd central && cp .env.template .env
 
 Edit `.env` with:
 ```
-DOMAIN=central.local
+DOMAIN=your-domain.com  # e.g., odk.epidemiology.tech
 SYSADMIN_EMAIL=you@example.com
-SSL_TYPE=selfsign
+SSL_TYPE=upstream       # Use 'selfsign' only if not behind a proxy
 ```
 
-Add `127.0.0.1 central.local` to `/etc/hosts`:
+If running locally without a real domain/proxy, add `127.0.0.1 central.local` to `/etc/hosts` and use `DOMAIN=central.local`.
 ```bash
 sudo nano /etc/hosts
 ```
@@ -86,9 +86,9 @@ sudo nano /etc/hosts
 
 | File | Purpose |
 |------|---------|
-| `docker-compose.yml` | Pure upstream v2025.4.1 |
+| `docker-compose.yml` | Pure upstream v2025.4.1 + Porst for PYXForm |
 | `docker-compose.override.yml` | VG security configs (modsecurity) |
-| `docker-compose.dev.yml` | Profile management (same as upstream) |
+| `docker-compose.vg-dev.yml` | Profile management (same as upstream) + Client HMR overrides in nginx |
 
 ### Build and Start
 
@@ -96,19 +96,19 @@ sudo nano /etc/hosts
 cd central
 
 # Build all services
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central build postgres14 enketo_redis_main enketo_redis_cache pyxform enketo mail secrets service
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml build postgres14 enketo_redis_main enketo_redis_cache pyxform enketo mail secrets service
 
 # Start services
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 
 # Install npm dependencies
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central run --rm service npm install
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml run --rm service npm install
 
 # Apply database migrations
 docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 
 # Start service and nginx
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central up -d service nginx
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d service nginx
 ```
 
 **Backend is now running at:** `https://central.local`
@@ -128,14 +128,14 @@ docker compose exec service odk-cmd --email your@email.com user-promote
 ## BASH ACCESS
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec -it service bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec -it service bash
 ```
 
 ## LOGS
 
 ```bash
 # Service logs
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central logs service -f --tail=50
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml logs service -f --tail=50
 
 # Modsecurity audit logs
 tail -f logs/modsecurity/audit.log | jq
@@ -154,38 +154,38 @@ docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server
 ### VG Password Unit Test
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
 ```
 
 ### VG Integration Tests
 
 ```bash
 # App user auth tests
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha --recursive test/integration/api/vg-app-user-auth.js'
 
 # Org app users tests
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-tests-orgAppUsers.js'
 
 # Telemetry tests
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && node -v && NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-telemetry.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && node -v && NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-telemetry.js'
 
 # Enketo status tests
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && node -v && NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-enketo-status.js'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && node -v && NODE_CONFIG_ENV=test BCRYPT=insecure npx --prefix server mocha test/integration/api/vg-enketo-status.js'
 ```
 
 ### Standard ODK Integration Tests
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api'
 
 # With different reporters
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter dot'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter dot'
 
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter min'
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api --reporter min'
 ```
 
 ## STOP CONTAINERS
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml --profile central down
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml down
 ```

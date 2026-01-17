@@ -301,7 +301,7 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
    ```bash
    # All 173 tests should pass
    docker compose -f docker-compose.yml -f docker-compose.override.yml \
-     -f docker-compose.dev.yml --profile central exec service \
+     -f docker-compose.dev.yml central exec service \
      sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure \
      npx mocha --recursive test/integration/api/vg-*.js'
    ```
@@ -515,7 +515,7 @@ git push origin vg-work --force
 - ✅ docker-compose.yml matches upstream v2025.4.0 (no VG changes)
 - ✅ files/nginx/setup-odk.sh matches upstream v2025.4.0 (SSL fixes present)
 - ✅ docker-compose.override.yml contains ONLY modsecurity/CRS security
-- ✅ docker-compose.dev.yml contains dev overrides (separate)
+- ✅ docker-compose.vg-dev.yml contains dev overrides (separate)
 - ✅ files/nginx/vg-*.conf removed
 - ✅ Submodules point to VG vg-work branches
 - ✅ docker compose config shows merged result correctly
@@ -530,7 +530,7 @@ git push origin vg-work --force
 
 ### Docker Compose Override Behavior
 - Docker Compose **automatically** merges docker-compose.yml + docker-compose.override.yml
-- For dev: `docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml up`
+- For dev: `docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up`
 - Override file can add, extend, or replace service configurations
 - Networks and volumes defined in override are merged with base
 

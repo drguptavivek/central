@@ -7,8 +7,19 @@ This doc captures the “standard” docker deployment shape for this `central` 
 ## Images
 
 - `service`: Central backend API (Node.js)
-- `nginx`: TLS termination + static frontend + reverse proxy to `service` (+ optional dev proxy to `client-dev`)
+- `nginx`: TLS termination + static frontend + reverse proxy to `service` (+ optional dev proxy to `client`)
 - `postgres14`, `enketo`, etc. as defined by compose
+
+For local development commands and the `docker-compose.vg-dev.yml` workflow, see [docker-development.md](docker-development.md).
+
+## Quick Start (Makefile)
+
+Use the Makefile shortcuts for production deployment:
+
+```bash
+make prod      # Start production stack (build + detach)
+make prod-stop # Stop production stack
+```
 
 ## Build
 

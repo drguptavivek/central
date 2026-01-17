@@ -148,17 +148,17 @@ const createAppUser = (service, projectId, xmlFormId) =>
 
 ```bash
 # Test web user login
-docker compose --profile central exec service sh -lc \
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc \
   'curl -X POST http://localhost:8383/v1/sessions \
    -H "Content-Type: application/json" \
    -d "{\"email\":\"alice@getodk.org\",\"password\":\"password4alice\"}"'
 
 # Check web user lockout settings
-docker compose --profile central exec -T postgres14 psql -U odk -d odk \
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec -T postgres14 psql -U odk -d odk \
   -c "SELECT * FROM vg_settings WHERE vg_key_name LIKE '%web_user_lock%';"
 
 # Run sessions tests
-docker compose --profile central exec service sh -lc \
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc \
   'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure \
    npx mocha test/integration/api/sessions.js --grep "POST"'
 ```

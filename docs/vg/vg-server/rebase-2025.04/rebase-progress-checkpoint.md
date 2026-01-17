@@ -80,7 +80,7 @@ central (meta):
 **Commands:**
 ```bash
 # Start Docker and services
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 
 # Wait for PostgreSQL to be ready
 docker exec central-postgres14-1 pg_isready -U odk
@@ -303,7 +303,7 @@ When Docker is running and you're ready to continue:
 cd /Users/vivekgupta/workspace/ODK/central
 
 # 2. Start services
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 
 # 3. Apply VG schema (P3.1)
 docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
