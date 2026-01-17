@@ -90,6 +90,26 @@ sudo nano /etc/hosts
 | `docker-compose.override.yml` | VG security configs (modsecurity) |
 | `docker-compose.vg-dev.yml` | Profile management (same as upstream) + Client HMR overrides in nginx |
 
+### Makefile Shortcuts
+
+Use the `Makefile` targets to run the common dev/prod compose commands:
+
+```bash
+# Development (vg-dev profile)
+make dev          # up -d
+make dev-nond     # up (foreground)
+make dev-build    # up -d --build
+make dev-logs     # logs --tail=50 -f
+make stop         # stop (dev)
+
+# Production (override only)
+make prod         # up -d
+make prod-nond    # up (foreground)
+make prod-build   # up -d --build
+make prod-logs    # logs --tail=50 -f
+make prod-stop    # stop (prod)
+```
+
 ### Build and Start
 
 ```bash

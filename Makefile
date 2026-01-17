@@ -4,6 +4,14 @@ docker-compose-dev := docker compose -f docker-compose.yml -f docker-compose.ove
 dev:
 	$(docker-compose-dev) up --detach
 
+.PHONY: dev-nond
+dev-nond:
+	$(docker-compose-dev) up
+
+.PHONY: dev-logs
+dev-logs:
+	$(docker-compose-dev) logs --tail=50 -f
+
 .PHONY: dev-build
 dev-build:
 	$(docker-compose-dev) up --detach --build
@@ -25,3 +33,11 @@ prod-build:
 .PHONY: prod-stop
 prod-stop:
 	$(docker-compose-prod) stop
+
+.PHONY: prod-nond
+prod-nond:
+	$(docker-compose-prod) up
+
+.PHONY: prod-logs
+prod-logs:
+	$(docker-compose-prod) logs --tail=50 -f

@@ -102,6 +102,9 @@ FROM ${NGINX_BASE_IMAGE}  # drguptavivek/central-nginx-vg-base:6.0.1 (VG)
       └── /tmp/version.txt → /usr/share/nginx/html
 ```
 
+**Build Context Notes:**
+- Add `client/.nginx` to `.dockerignore` to avoid ownership-related Docker build failures when the host directory contains root-owned files.
+
 **What Gets BAKED IN at Build Time:**
 1. ✅ Frontend assets (`client/dist/`) - Built React application
 2. ✅ Version.txt - Git tag/commit
