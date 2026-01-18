@@ -99,6 +99,8 @@ Use the `Makefile` targets to run the common dev/prod compose commands:
 make dev          # up -d
 make dev-nond     # up (foreground)
 make dev-build    # up -d --build
+docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
+
 make dev-logs     # logs --tail=50 -f
 make stop         # stop (dev)
 
@@ -106,6 +108,8 @@ make stop         # stop (dev)
 make prod         # up -d
 make prod-nond    # up (foreground)
 make prod-build   # up -d --build
+docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
+
 make prod-logs    # logs --tail=50 -f
 make prod-stop    # stop (prod)
 ```
@@ -131,7 +135,7 @@ docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d service nginx
 ```
 
-**Backend is now running at:** `https://central.local`
+**Backend is now running at:** congigured domain name
 
 ## USER CREATION
 

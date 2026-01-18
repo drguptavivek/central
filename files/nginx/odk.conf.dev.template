@@ -45,6 +45,11 @@ map $args $qp_deliminator {
   default "?";
 }
 
+map $http_upgrade $connection_upgrade {
+  default "upgrade";
+  "" "close";
+}
+
 map $arg_st $redirect_non_single_prefix {
   ~.+     "${is_args}${args}${qp_deliminator}single=false";
   default "/new${is_args}${args}";
@@ -77,14 +82,12 @@ server {
 
   server_tokens off;
 
-  # VG: Enable ModSecurity + OWASP CRS
-  modsecurity on;
-  modsecurity_rules_file /etc/modsecurity/modsecurity-odk.conf;
+  # VG: Disable ModSecurity in dev to avoid blocking Vite module requests
+  modsecurity off;
 
   # VG: Hardening via headers-more
   include /usr/share/odk/nginx/vg-headers-more.conf;
 
-  add_header Content-Security-Policy-Report-Only "default-src 'none'; connect-src https://translate.google.com https://translate.googleapis.com; img-src https://translate.google.com; report-uri /csp-report";
   include /usr/share/odk/nginx/common-headers.conf;
 
   client_max_body_size 100m;
@@ -129,9 +132,12 @@ server {
   # --- DEV PROXY TO VITE CLIENT ---
   location / {
     proxy_pass http://client:8989;
+    proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
+    proxy_set_header Connection $connection_upgrade;
+    proxy_read_timeout 600s;
+    proxy_buffering off;
     
     # Standard headers
     proxy_set_header X-Real-IP $remote_addr;
@@ -139,8 +145,4 @@ server {
     proxy_set_header X-Forwarded-Proto $scheme;
   }
 
-  location /csp-report {
-    proxy_pass https://${SENTRY_ORG_SUBDOMAIN}.ingest.sentry.io/api/${SENTRY_PROJECT}/security/?sentry_key=${SENTRY_KEY};
-    proxy_ssl_server_name on;
-  }
 }

@@ -16,6 +16,13 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
 
 ## Entries
 
+- Date: 2026-01-18
+  File: src/util/i18n.js; src/util/request.js; src/util/csv.js; src/components/form-attachment/popups.vue; src/components/form-attachment/list.vue; src/components/dataset/overview/linked-forms.vue; src/components/dataset/show.vue; src/components/home/summary.vue; src/components/form/head.vue; test/unit/i18n.spec.js
+  Change summary: Replace deprecated `tc/$tc` usage with `t/$t`, and update $tcn helper/tests accordingly.
+  Reason: Remove vue-i18n v10 deprecation warnings and prep for v11 removal.
+  Risk/notes: Low; pluralization logic preserved, but relies on `t()` plural API.
+  Related commits/PRs: vg-work history
+
 - Date: 2026-01-01
   File: src/components/account/login.vue
   Change summary: Display login attempts remaining and lockout retry info from headers.
@@ -2252,4 +2259,29 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
      proxy: Object.fromEntries(proxyPaths.map(path => [path, 'http://localhost:8686'])),
      // Because we proxy to nginx, which itself proxies to Backend and other
      // things, the dev server doesn't need to allow CORS. CORS is already limited
+  ```
+
+- Date: 2026-01-17
+  File: client/src/components/navbar.vue
+  Change summary: Update navbar background and top border colors for VG branding.
+  Reason: Apply VG-specific header colors.
+  Risk/notes: Low; visual-only change.
+  Related commits/PRs: vg-work local change.
+  Diff:
+  ```diff
+  diff --git a/client/src/components/navbar.vue b/client/src/components/navbar.vue
+  index 0c76e0e7..b0c0f5a6 100644
+  --- a/client/src/components/navbar.vue
+  +++ b/client/src/components/navbar.vue
+  @@ -99,9 +99,9 @@ $border-height: 3px;
+ 
+  .navbar-default {
+  -  background-color: $color-accent-primary;
+  +  background-color: #dd2c2c;
+     border: none;
+  -  border-top: $border-height solid $color-accent-secondary;
+  +  border-top: $border-height solid #dedede;
+     box-shadow: 0 $border-height 0 #dedede;
+     height: 30px + $border-height; // the way bootstrap is set up, the border eats the body.
+     margin-bottom: 0;
   ```
