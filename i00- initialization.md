@@ -147,6 +147,9 @@ docker compose --env-file .env exec service odk-cmd --email your@email.com user-
 
 # Promote to admin
 docker compose exec service odk-cmd --email your@email.com user-promote
+
+# Reset password
+docker compose exec service odk-cmd --email your@email.com user-set-password
 ```
 
 ## BASH ACCESS

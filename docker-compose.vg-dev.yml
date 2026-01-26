@@ -29,6 +29,8 @@ services:
   service:
     ports:
       - "8383:8383"
+    volumes:
+      - dev_secrets:/etc/secrets
   client:
     build:
       context: ./client
@@ -69,8 +71,6 @@ services:
     environment:
       - ENV=DEV
       - ENKETO_SECRETS=danger-insecure
-    extra_hosts:
-      - "${DOMAIN}:host-gateway"
     ports:
       - 8005:8005
   enketo_redis_main:
