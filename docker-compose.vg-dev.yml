@@ -52,8 +52,7 @@ services:
       - ./files/nginx/odk.conf.dev.template:/usr/share/odk/nginx/odk.conf.template
     networks:
       default:
-        aliases:
-          - ${DOMAIN}
+        aliases: []
   pyxform:
     ports:
       - "${PYXFORM_PORT:-8085}:80"
