@@ -19,6 +19,13 @@ in `getodk/central-backend`. Use it to keep rebases manageable.
 
 ## Entries
 
+- Date: 2026-02-04
+  File: lib/resources/users.js
+  Change summary: Add audit-backed rate limiting for /v1/users/reset/initiate with IP/email lockouts.
+  Reason: Prevent brute-force abuse of password reset initiation.
+  Risk/notes: Medium; lockout behavior added, returns 429 when locked.
+  Related commits/PRs: vg-work history
+
 - Date: 2026-01-01
   File: lib/resources/sessions.js
   Change summary: Log failed web login attempts with normalized identifiers and metadata.

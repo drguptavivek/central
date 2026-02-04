@@ -16,6 +16,13 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
 
 ## Entries
 
+- Date: 2026-01-27
+  File: src/components/app.vue
+  Change summary: Swap core navbar for VG-branded `VgNavbar`.
+  Reason: Scope branding and navbar colors to VG customization.
+  Risk/notes: Low; navbar rendering only.
+  Related commits/PRs: vg-work history
+
 - Date: 2026-01-18
   File: src/util/i18n.js; src/util/request.js; src/util/csv.js; src/components/form-attachment/popups.vue; src/components/form-attachment/list.vue; src/components/dataset/overview/linked-forms.vue; src/components/dataset/show.vue; src/components/home/summary.vue; src/components/form/head.vue; test/unit/i18n.spec.js
   Change summary: Replace deprecated `tc/$tc` usage with `t/$t`, and update $tcn helper/tests accordingly.
