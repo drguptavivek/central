@@ -11,6 +11,8 @@ COPY ./ ./
 RUN files/prebuild/write-version.sh
 
 ARG SKIP_FRONTEND_BUILD
+ARG VITE_APP_NAME
+ENV VITE_APP_NAME=${VITE_APP_NAME}
 RUN files/prebuild/build-frontend.sh
 
 

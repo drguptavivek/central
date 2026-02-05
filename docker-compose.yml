@@ -87,6 +87,8 @@ services:
     build:
       context: .
       dockerfile: nginx.dockerfile
+      args:
+        - VITE_APP_NAME=${VITE_APP_NAME:-}
     depends_on:
       - service
       - enketo

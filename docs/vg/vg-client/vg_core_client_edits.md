@@ -16,6 +16,27 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
 
 ## Entries
 
+- Date: 2026-02-04
+  File: src/components/navbar.vue
+  Change summary: Replace hard-coded active nav background with $color-accent-secondary.
+  Reason: Ensure navbar active state respects VG color overrides.
+  Risk/notes: Low; cosmetic change only.
+  Related commits/PRs: vg-work history
+
+- Date: 2026-02-04
+  File: src/components/navbar.vue
+  Change summary: Make navbar brand name configurable via VITE_APP_NAME.
+  Reason: Allow branding changes without editing templates.
+  Risk/notes: Low; cosmetic change only.
+  Related commits/PRs: vg-work history
+
+- Date: 2026-02-04
+  File: src/assets/scss/_variables.scss
+  Change summary: Import vg-specific color overrides at the end of core variables.
+  Reason: Ensure brand overrides apply anywhere core variables are imported.
+  Risk/notes: Low; extra Sass import only.
+  Related commits/PRs: vg-work history
+
 - Date: 2026-01-27
   File: src/components/app.vue
   Change summary: Swap core navbar for VG-branded `VgNavbar`.

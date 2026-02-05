@@ -38,6 +38,8 @@ services:
     # Ports are NOT published to host, only internal network
     expose:
       - "8989"
+    environment:
+      - VITE_APP_NAME=${VITE_APP_NAME:-}
     volumes:
       - ./client:/usr/src/app
       - /usr/src/app/node_modules
