@@ -1,6 +1,4 @@
-ARG NGINX_BASE_IMAGE=drguptavivek/central-nginx-vg-base:6.0.1
-
-FROM node:22.21.1-slim AS intermediate
+FROM node:22.22.0-slim AS intermediate
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -19,7 +17,7 @@ RUN files/prebuild/build-frontend.sh
 
 # when upgrading, look for upstream changes to redirector.conf
 # also, confirm setup-odk.sh strips out HTTP-01 ACME challenge location
-FROM ${NGINX_BASE_IMAGE}
+FROM jonasal/nginx-certbot:6.0.1
 
 EXPOSE 80
 EXPOSE 443
@@ -30,11 +28,6 @@ VOLUME [ "/etc/dh", "/etc/selfsign" ]
 RUN apt-get update && apt-get install -y netcat-openbsd
 
 RUN mkdir -p /usr/share/odk/nginx/
-
-RUN mkdir -p /etc/nginx/modules-enabled /var/log/nginx /var/log/modsecurity \
-    && if ! grep -q '/etc/nginx/modules-enabled' /etc/nginx/nginx.conf; then \
-         sed -i '1i include /etc/nginx/modules-enabled/*.conf;' /etc/nginx/nginx.conf; \
-       fi
 
 COPY files/nginx/setup-odk.sh \
      files/shared/envsub.awk \

@@ -20,7 +20,7 @@ dev-build:
 stop dev-stop:
 	$(docker-compose-dev) stop
 
-docker-compose-prod := docker compose -f docker-compose.yml -f docker-compose.override.yml
+docker-compose-prod := docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-prod.yml
 
 .PHONY: prod
 prod:
