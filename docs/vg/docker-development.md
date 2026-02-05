@@ -89,6 +89,11 @@ The `client` service starts automatically with the dev stack:
 | enketo_redis_main | 6379 | 63799 |
 | enketo_redis_cache | 6379 | 63800 |
 
+## Troubleshooting
+
+### `/version.txt` returns 404 in dev
+In the dev stack, nginx proxies `location /` to the Vite client (`client:8989`), so `/version.txt` is served by Vite rather than nginx static files. If your external proxy points at the dev stack, `/version.txt` may 404. Use the prod stack for `/version.txt`, or add a dev nginx override to serve it directly.
+
 ## Dev Secrets
 
 Development uses hardcoded insecure secrets (defined in `docker-compose.vg-dev.yml`):
