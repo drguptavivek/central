@@ -50,6 +50,9 @@ services:
     depends_on:
       - nginx
   nginx:
+    build:
+      args:
+        - SKIP_FRONTEND_BUILD=1
     volumes:
       - ./files/nginx/odk.conf.dev.template:/usr/share/odk/nginx/odk.conf.template
     networks:

@@ -27,7 +27,8 @@ EXPOSE 443
 # Persist Diffie-Hellman parameters and/or selfsign key
 VOLUME [ "/etc/dh", "/etc/selfsign" ]
 
-RUN apt-get update && apt-get install -y netcat-openbsd
+RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd logrotate \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /usr/share/odk/nginx/
 
@@ -37,14 +38,18 @@ RUN mkdir -p /etc/nginx/modules-enabled /var/log/nginx /var/log/modsecurity \
        fi
 
 COPY files/nginx/setup-odk.sh \
+     files/nginx/start-with-logrotate.sh \
      files/shared/envsub.awk \
      /scripts/
+RUN chmod +x /scripts/setup-odk.sh /scripts/start-with-logrotate.sh
 
 COPY files/nginx/redirector.conf /usr/share/odk/nginx/
 COPY files/nginx/backend.conf /usr/share/odk/nginx/
 COPY files/nginx/common-headers.conf /usr/share/odk/nginx/
+COPY files/nginx/logrotate-nginx.conf /etc/logrotate.d/nginx-container
+RUN chmod 0644 /etc/logrotate.d/nginx-container
 COPY files/nginx/robots.txt /usr/share/nginx/html
 COPY --from=intermediate client/dist/ /usr/share/nginx/html
 COPY --from=intermediate /tmp/version.txt /usr/share/nginx/html
 
-ENTRYPOINT [ "/scripts/setup-odk.sh" ]
+ENTRYPOINT [ "/scripts/start-with-logrotate.sh" ]
