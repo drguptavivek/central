@@ -183,6 +183,144 @@ API calls (no further auth)
 
 ---
 
+## OpenRosa Submissions (Collect Data Upload)
+
+### Overview
+
+OpenRosa is a protocol standard for form submission used by ODK Collect (and other mobile data collection apps) to submit completed forms and associated attachments to Central.
+
+### Workflow
+
+```
+Collect app has completed form
+           ↓
+Collect authenticates using field key token
+(from /app-users/login endpoint)
+           ↓
+[POST /projects/:projectId/submission]
+(OpenRosa multipart form submission)
+           ↓
+openRosaPreprocessor validates
+X-OpenRosa-Version header
+           ↓
+authHandler processes field key
+(bearer token in Authorization header
+or URL prefix /key/{token}/)
+           ↓
+Field key is valid
+           ↓
+Session created with
+actor.type='field_key'
+           ↓
+TOTP check SKIPPED
+(line 104: only for isCookie)
+           ↓
+IP whitelist check SKIPPED
+(line 71: if session.actor.type !== 'user')
+           ↓
+Submission processed
+Form data + attachments stored
+```
+
+### Features Applied:
+❌ **2FA** - SKIPPED (not cookie auth, field key only)
+❌ **IP Whitelist** - SKIPPED (actor.type='field_key')
+✅ **Rate Limiting** - Applied only to app user login, not to submission itself
+
+### Key Code:
+
+**OpenRosa endpoint setup** (`server/lib/resources/submissions.js`):
+- Line 73-87: GET/HEAD `/projects/:projectId/submission` (returns 204)
+- Line 104: POST `/projects/:projectId/submission` with multipart form data
+- Both use `_endpoint.openRosa(...)` which applies the openRosaPreprocessor
+
+**OpenRosa-specific preprocessor** (`server/lib/http/endpoint.js:310-318`):
+```javascript
+const openRosaPreprocessor = (_, context) => {
+  const header = context.headers['x-openrosa-version'];
+  if (header !== '1.0')
+    return reject(Problem.user.invalidHeader({ field: 'X-OpenRosa-Version', value: header }));
+};
+```
+- Only validates protocol header
+- Does NOT do any authentication (auth happens in authHandler)
+
+**Endpoint preprocessor chain** (`server/lib/http/service.js:88`):
+```javascript
+const endpoint = builder(container, [authHandler, ...commonPreprocessors]);
+```
+OpenRosa endpoints apply:
+1. `openRosaPreprocessor` (validates X-OpenRosa-Version)
+2. `authHandler` (authenticates field key or other credentials)
+3. `queryOptionsHandler`
+4. `userAgentHandler`
+
+**Field key authentication** (`server/lib/http/preprocessors.js:116-138`):
+- Field keys extracted by `fieldKeyParser` middleware from:
+  - URL prefix: `/key/{token}/...`
+  - Query parameter: `?st={token}`
+- Session created with `actor.type='field_key'`
+- Does NOT trigger TOTP check (line 104 checks `isCookie` - field keys are always false)
+- Does NOT trigger IP whitelist check (line 71 filters `actor.type !== 'user'`)
+
+### Security Isolation:
+
+The OpenRosa endpoint correctly isolates app user (field key) authentication:
+
+✅ **TOTP is only for web users** (cookie auth):
+```javascript
+// Line 104 of preprocessors.js
+if (isCookie) {
+  return checkTotpVerification(cxt.auth.session.get(), cxt);
+}
+```
+Field keys are bearer tokens (not cookies), so TOTP is never checked.
+
+✅ **IP whitelist is only for web API users** (actor.type='user'):
+```javascript
+// Line 71 of preprocessors.js
+if (session.actor.type !== 'user') {
+  return Promise.resolve(cxt);  // Skip IP whitelist
+}
+```
+Field keys have `actor.type='field_key'`, so IP whitelist is skipped.
+
+### Collect App Flow:
+
+```
+Collect App                    Central
+     │                            │
+     │ POST /v1/projects/:id/app-users/login
+     │ (username, password)
+     │──────────────────────────→│
+     │                            │ Check IP rate limit
+     │                            │ Verify password
+     │                            │ Create field_key session
+     │                            │ Generate bearer token
+     │ {token: "..."}             │
+     │←──────────────────────────│
+     │                            │
+     │ [Store token locally]      │
+     │                            │
+     │ POST /projects/:id/submission
+     │ Authorization: Bearer {token}
+     │ X-OpenRosa-Version: 1.0
+     │ [Form XML + attachments]
+     │──────────────────────────→│
+     │                            │ openRosaPreprocessor
+     │                            │ → validate header
+     │                            │ authHandler
+     │                            │ → field key lookup
+     │                            │ → actor.type='field_key'
+     │                            │ → skip TOTP
+     │                            │ → skip IP whitelist
+     │                            │ Process submission
+     │ [Success/Error]            │
+     │←──────────────────────────│
+```
+
+---
+
 ## Security Features Summary
 
 ### 2FA (TOTP)
@@ -283,9 +421,29 @@ if (session.actor.type !== 'user') {
 ```
 ✅ CORRECT: Bearer token users (API) don't go through TOTP check
 
+**5. Field key auth (OpenRosa) correctly skips both TOTP and IP whitelist**
+```javascript
+// server/lib/http/preprocessors.js:116-138
+if (context.fieldKey.isDefined()) {
+  // Field key path
+  return Sessions.getByBearerToken(key)
+    .then((session) => {
+      if ((session.actor.type !== 'field_key') && (session.actor.type !== 'public_link'))
+        return reject(Problem.user.insufficientRights());
+      // Returns context with auth, does NOT go through TOTP or IP whitelist
+      return context.with({ auth: Auth.by(session) });
+    });
+}
+```
+✅ CORRECT: Field keys (Collect app users) bypass TOTP and IP whitelist checks
+- Field keys are extracted by `fieldKeyParser` from URL (`/key/{token}/...`) or query param (`?st={token}`)
+- Auth is set with `actor.type='field_key'`
+- The conditional logic in `authBySessionToken` (line 104: `if (isCookie)`) doesn't apply to field keys
+- Field keys never reach the TOTP or IP whitelist checks
+
 ### ⚠️ Potential Issues
 
-**None identified** - The implementation correctly isolates the three authentication workflows.
+**None identified** - The implementation correctly isolates the three authentication workflows and the OpenRosa endpoint.
 
 ---
 
@@ -301,12 +459,20 @@ test/unit/util/vg-totp.js
 ```bash
 test/integration/api/vg-tests-orgAppUsers.js
 test/integration/api/vg-app-user-auth.js
+test/integration/api/submissions.js  (OpenRosa submission tests)
 ```
 
 ### Rate Limiting Tests:
 ```bash
 test/integration/api/sessions.js
 test/integration/api/vg-webusers.js
+test/integration/api/vg-app-user-auth.js  (app user login rate limiting)
+```
+
+### OpenRosa Submission Tests:
+```bash
+test/integration/api/submissions.js
+test/integration/api/vg-app-user-auth.js  (field key auth)
 ```
 
 ---
@@ -323,6 +489,9 @@ Before deploying to production:
 - [ ] Test IP whitelist with API calls from different IPs
 - [ ] Test that app users can log in from any IP (not restricted by whitelist)
 - [ ] Verify rate limiting triggers after 5 failures
+- [ ] Test OpenRosa submissions with field key auth (Collect app)
+- [ ] Verify Collect app can submit from any IP (no IP whitelist restriction)
+- [ ] Run OpenRosa submission tests: `npm test test/integration/api/submissions.js`
 
 ---
 
@@ -358,8 +527,17 @@ Before deploying to production:
   - Subject to IP whitelist if enabled
   - No rate limiting on API calls
 
+### Form Submission (OpenRosa)
+
+- **App user submission**: OpenRosa protocol with field key auth
+  - Field key obtained from `/app-users/login` endpoint
+  - Field key token used in URL (`/key/{token}/...`) or Authorization header
+  - No TOTP check (not cookie auth)
+  - No IP whitelist check (actor.type='field_key')
+  - Rate limiting applies only to app-user login, not to submission itself
+
 ---
 
 **Status**: ✅ All workflows correctly isolated and tested
-**Conclusion**: Implementation properly separates concerns for three user types
+**Conclusion**: Implementation properly separates concerns for three user types + OpenRosa submissions
 
