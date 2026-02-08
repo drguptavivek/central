@@ -17,6 +17,48 @@ OpenROSA is the legacy API protocol used by ODK Collect mobile clients for:
 
 ---
 
+## Authentication
+
+OpenROSA endpoints use **App User tokens** (actor type: `field_key`). These tokens can be obtained in two ways:
+
+### Upstream ODK Central: QR Code Tokens
+
+1. Admin creates app user → server generates permanent token (~1000 years)
+2. Token displayed as QR code
+3. User scans QR into ODK Collect (one-time setup)
+4. Collect uses token in URLs forever
+
+### VG Fork: Password-Based Tokens
+
+1. Admin creates app user with username/password
+2. User logs in via mobile app: `POST /v1/projects/:id/app-users/login`
+3. Server returns short-lived token (3 days default)
+4. Collect uses token in URLs
+5. User re-logs in when token expires
+
+### Token Usage (Both Methods)
+
+**Path-based format** (recommended):
+```http
+GET /v1/key/{token}/projects/1/formList
+POST /v1/key/{token}/projects/1/submission
+```
+
+**Query parameter format** (legacy):
+```http
+GET /v1/projects/1/formList?st={token}
+POST /v1/projects/1/submission?st={token}
+```
+
+**Example token:**
+```
+!Ms7V3$Zdnd63j5HFacIPFEvFAuwNqTUZW$AsVOmaQFf$vIC!F8dJjdgiDnJXXOt
+```
+
+**Important:** Both upstream QR tokens and VG password tokens use the **same authentication method** once obtained. The difference is only in how tokens are created and how long they last.
+
+---
+
 ## Protocol Requirements
 
 ### Required Headers
@@ -64,9 +106,12 @@ SecRule &REQUEST_HEADERS:X-OpenRosa-Version "@eq 0" \
 
 **Request:**
 ```
-GET /v1/projects/1/formList
+GET /v1/key/{token}/projects/1/formList
 X-OpenRosa-Version: 1.0
-Authorization: Bearer <token>
+
+# Alternative query parameter format:
+GET /v1/projects/1/formList?st={token}
+X-OpenRosa-Version: 1.0
 ```
 
 **Response:**
@@ -207,7 +252,7 @@ Content-Type: application/xml
 
 **Request:**
 ```
-POST /v1/projects/1/submission
+POST /v1/key/{token}/projects/1/submission
 X-OpenRosa-Version: 1.0
 Content-Type: multipart/form-data; boundary=---xyz
 
@@ -222,6 +267,12 @@ Content-Type: image/jpeg
 
 <binary data>
 -----xyz--
+
+# Alternative query parameter format:
+POST /v1/projects/1/submission?st={token}
+X-OpenRosa-Version: 1.0
+Content-Type: multipart/form-data; boundary=---xyz
+...
 ```
 
 **Response:**
