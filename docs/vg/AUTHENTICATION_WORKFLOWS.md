@@ -183,6 +183,129 @@ API calls (no further auth)
 
 ---
 
+## OData Service Endpoints (Tableau & BI Tools)
+
+### Overview
+
+OData is a REST API protocol used by business intelligence tools (Tableau, Power BI, etc.) to query and analyze form submission data. Central provides OData endpoints at:
+- **Published forms**: `/projects/:projectId/forms/:xmlFormId.svc`
+- **Draft forms**: `/projects/:projectId/forms/:xmlFormId/draft.svc`
+- **Datasets**: `/projects/:projectId/datasets/:name.svc`
+
+### Authentication Flow
+
+```
+BI Tool (Tableau, Power BI, etc)
+           ↓
+Requests data via OData endpoint
+(e.g., GET /forms/form.svc/Submissions)
+           ↓
+Authenticates with credentials
+(Bearer token, Basic Auth, etc)
+           ↓
+fieldKeyParser extracts field key (if present)
+           ↓
+authHandler processes authentication:
+  - Field key → actor.type='field_key'
+  - Bearer token → actor.type='user' or 'public_link'
+  - Basic auth → actor.type='user'
+           ↓
+odataPreprocessor validates OData protocol:
+  - Check format (JSON/XML)
+  - Check OData version (4.0+)
+  - Check supported parameters
+           ↓
+Apply permission checks:
+  auth.canOrReject('submission.read', form)
+           ↓
+Apply security filters based on auth type:
+```
+
+### Security Features Applied:
+
+| Auth Type | 2FA | IP Whitelist | Notes |
+|-----------|-----|--------------|-------|
+| **Field Key** | ❌ Skipped | ❌ Skipped | actor.type='field_key' bypasses both |
+| **Bearer Token (User)** | ❌ Not on API calls | ✅ Applied if enabled | actor.type='user' triggers IP check |
+| **Basic Auth (User)** | ❌ Not on API calls | ✅ Applied if enabled | Authenticates as user, same as bearer |
+| **Public Link** | ❌ N/A | ❌ Skipped | actor.type='public_link' |
+
+### Key Code:
+
+**OData endpoint registration** (`server/lib/resources/odata.js:80-91`):
+```javascript
+odataResource('/projects/:projectId/forms/:xmlFormId.svc', false,
+  (Forms, auth, params) =>
+    Forms.getByProjectAndXmlFormId(params.projectId, params.xmlFormId, Form.PublishedVersion)
+      .then(getOrNotFound)
+      .then(ensureDef)
+      .then((form) => auth.canOrReject('submission.read', form))
+);
+```
+- Uses `endpoint.odata.json()` and `endpoint.odata.xml()`
+- Performs permission check via `auth.canOrReject()`
+
+**OData preprocessor** (`server/lib/http/endpoint.js:363-388`):
+```javascript
+const odataPreprocessor = (format) => (_, context) => {
+  // Validates OData protocol compliance:
+  // - Format (JSON/XML)
+  // - OData version (4.0+)
+  // - Supported query parameters ($filter, $select, etc)
+  // Does NOT do authentication
+};
+```
+
+**Endpoint preprocessor chain** (`server/lib/http/endpoint.js:414-425`):
+```javascript
+const odataJsonEndpoint = endpointBase({
+  preprocessor: odataPreprocessor('json'),
+  before: odataBefore,
+  resultWriter: odataJsonWriter,
+  errorWriter: defaultErrorWriter
+});
+```
+OData endpoints apply:
+1. `odataPreprocessor` (validates OData protocol)
+2. `authHandler` (authenticates + applies TOTP + IP whitelist)
+3. `queryOptionsHandler`
+4. `userAgentHandler`
+
+### Security Isolation for OData:
+
+✅ **Field keys (App Users) accessing OData**:
+- Created with `actor.type='field_key'`
+- TOTP check skipped (line 104: only for `isCookie`)
+- IP whitelist check skipped (line 71: filters `actor.type !== 'user'`)
+- Can access OData from any IP
+
+✅ **Web users accessing OData with Bearer Token**:
+- Created with `actor.type='user'`
+- TOTP check skipped (not cookie auth)
+- IP whitelist check applied if entries exist (line 71: passes through)
+- Can access OData only from whitelisted IPs (if enabled)
+
+✅ **Web users accessing OData via Basic Auth**:
+- Email/password authenticated (lines 146-171 of preprocessors.js)
+- Created with `actor.type='user'`
+- TOTP check skipped (not cookie auth)
+- IP whitelist check applied if entries exist
+
+### Important Distinctions:
+
+**OData vs OpenRosa**:
+- Both use the same authentication pipeline
+- OData is for data **query** (Tableau, Power BI read-only)
+- OpenRosa is for data **submission** (Collect write operations)
+- Same security model applies to both
+
+**OData vs Regular REST API**:
+- OData endpoints validate protocol compliance first
+- Then apply same auth/TOTP/IP checks as other endpoints
+- Permissions checked via `auth.canOrReject()`
+
+---
+
 ## OpenRosa Submissions (Collect Data Upload)
 
 ### Overview
@@ -378,6 +501,17 @@ Collect App                    Central
 - **App User Auth**: `server/lib/resources/vg-app-user-auth.js:51-120`
 - **App User Domain**: `server/lib/domain/vg-app-user-auth.js`
 
+### OData Service (Tableau/BI Tools):
+- **OData Endpoints**: `server/lib/resources/odata.js:80-91` (forms)
+- **OData Entities**: `server/lib/resources/odata-entities.js` (datasets)
+- **OData Preprocessor**: `server/lib/http/endpoint.js:363-388`
+- **OData Endpoint Builder**: `server/lib/http/endpoint.js:414-425`
+
+### OpenRosa Submissions (Collect):
+- **OpenRosa Endpoints**: `server/lib/resources/submissions.js:73-104`
+- **OpenRosa Preprocessor**: `server/lib/http/endpoint.js:310-318`
+- **Field Key Parser**: `server/lib/http/middleware.js:42-59`
+
 ### Shared:
 - **Preprocessor**: `server/lib/http/preprocessors.js` (central auth dispatch)
 - **Problem codes**: `server/lib/util/problem.js` (error definitions)
@@ -441,9 +575,24 @@ if (context.fieldKey.isDefined()) {
 - The conditional logic in `authBySessionToken` (line 104: `if (isCookie)`) doesn't apply to field keys
 - Field keys never reach the TOTP or IP whitelist checks
 
+**6. OData endpoints apply same authentication as REST API**
+```javascript
+// server/lib/http/endpoint.js:437-438
+result.odata = {
+  json: odataJsonEndpoint(container, preprocessors),
+  xml: odataXmlEndpoint(container, preprocessors)
+};
+```
+✅ CORRECT: OData endpoints use same preprocessors as regular API endpoints
+- `odataPreprocessor` validates protocol compliance (format, version, parameters)
+- `authHandler` applies authentication + TOTP + IP whitelist checks
+- Web users with Bearer tokens trigger IP whitelist check if enabled
+- Field keys bypass both TOTP and IP whitelist
+- No difference in security between REST API and OData Service
+
 ### ⚠️ Potential Issues
 
-**None identified** - The implementation correctly isolates the three authentication workflows and the OpenRosa endpoint.
+**None identified** - The implementation correctly isolates the three authentication workflows, OpenRosa endpoint, and OData service.
 
 ---
 
@@ -507,9 +656,20 @@ Before deploying to production:
 
 ### Authentication Endpoints
 
+**Login Endpoints:**
 - **Web user login**: `POST /v1/sessions` (username=email, password)
 - **App user login**: `POST /v1/projects/:id/app-users/login` (username, password)
-- **API calls**: Any endpoint with `Authorization: Bearer <token>`
+
+**API Access Endpoints:**
+- **REST API**: Any endpoint with `Authorization: Bearer <token>`
+- **OData Service**: `/projects/:projectId/forms/:xmlFormId.svc` (Bearer token or Basic auth)
+  - Used by: Tableau, Power BI, custom dashboards
+  - Authentication: Field key (field_key actor) or Web user token (user actor)
+
+**Form Submission Endpoint:**
+- **OpenRosa**: `POST /projects/:projectId/submission` (Field key auth)
+  - Used by: ODK Collect, custom mobile apps
+  - Authentication: Field key from `/app-users/login`
 
 ### Session Types
 
@@ -527,6 +687,25 @@ Before deploying to production:
   - Subject to IP whitelist if enabled
   - No rate limiting on API calls
 
+### Data Access Methods
+
+**REST API vs OData Service:**
+Both methods authenticate identically and apply the same security controls. Choice depends on client:
+- **REST API**: Direct HTTP calls to `/v1/projects/...` endpoints
+  - Used by: Custom applications, scripts, dashboards
+  - Client control: Explicit for each call
+- **OData Service**: Standardized query protocol `/forms/...svc`
+  - Used by: Tableau, Power BI, Excel
+  - Client: Uses tool's built-in OData connector
+
+**Authentication Compatibility:**
+| Method | Field Key | Web User (Bearer) | Web User (Basic) | Public Link |
+|--------|-----------|------------------|------------------|-------------|
+| REST API | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| OData Service | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| Security: 2FA | ❌ Skip | ❌ Skip (API) | ❌ Skip (API) | ❌ N/A |
+| Security: IP Whitelist | ❌ Skip | ✅ Applied | ✅ Applied | ❌ Skip |
+
 ### Form Submission (OpenRosa)
 
 - **App user submission**: OpenRosa protocol with field key auth
@@ -538,6 +717,50 @@ Before deploying to production:
 
 ---
 
+## Complete Authentication Architecture Summary
+
+### User Types and Access Methods:
+
+```
+Web Users (Admin)
+├─ Login: POST /v1/sessions (password + TOTP)
+├─ API Access: Bearer token or REST API
+│  ├─ REST API: Any endpoint with Authorization header
+│  ├─ OData Service: /forms/.svc endpoints
+│  ├─ Security: IP whitelist (optional), TOTP at login only
+│  └─ Rate limiting: None on API calls
+└─ Protected by: TOTP (login only), IP whitelist (API access)
+
+App Users (Collect, Mobile)
+├─ Login: POST /projects/:id/app-users/login (username + password)
+├─ Form Submission: POST /projects/:id/submission (OpenRosa)
+├─ Data Access: Bearer token or OData Service
+│  ├─ OData Service: /forms/.svc endpoints via field key
+│  ├─ Security: No TOTP, No IP whitelist
+│  └─ Rate limiting: None on submissions/API calls
+└─ Protected by: Rate limiting on login only
+
+Public Links (Anonymous)
+├─ Access: Direct URL with embedded token
+├─ Data Read: Form metadata, submission data
+└─ Security: No authentication, no TOTP, no IP whitelist
+```
+
+### Security Feature Application Matrix:
+
+| Feature | Web Login | API/OData (User) | API/OData (Field Key) | OpenRosa | Public Link |
+|---------|-----------|------------------|----------------------|----------|-------------|
+| **2FA (TOTP)** | ✅ Required/Optional | ❌ Skip | ❌ Skip | ❌ Skip | ❌ N/A |
+| **IP Whitelist** | ❌ N/A | ✅ Applied | ❌ Skip | ❌ Skip | ❌ N/A |
+| **Rate Limiting** | ✅ On login | ❌ None | ❌ None (api) ✅ (login) | ❌ None | ❌ None |
+
+**Key Insight**: Same actor.type check filters all security features correctly:
+- `actor.type='user'` (web users): IP whitelist applies
+- `actor.type='field_key'` (app users): IP whitelist skipped
+- `actor.type='public_link'` (public): All checks skipped
+
+---
+
 **Status**: ✅ All workflows correctly isolated and tested
-**Conclusion**: Implementation properly separates concerns for three user types + OpenRosa submissions
+**Conclusion**: Implementation properly separates concerns for all user types across REST API, OData Service, and OpenRosa endpoints
 
