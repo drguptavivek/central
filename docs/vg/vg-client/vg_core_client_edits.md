@@ -2313,3 +2313,11 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
      height: 30px + $border-height; // the way bootstrap is set up, the border eats the body.
      margin-bottom: 0;
   ```
+
+- Date: 2026-02-08
+  File: src/components/account/login.vue
+  Change summary: Add two-phase TOTP 2FA verification flow (Phase 1: email/password, Phase 2: TOTP code or backup code).
+  Reason: Implement mandatory 2FA for web users as part of security hardening.
+  Risk/notes: Low; isolated to login component with backwards compatible session handling (requiresTotp only set by backend when user has 2FA enabled). Existing non-2FA login paths unaffected.
+  Related commits/PRs: central-901
+  ```
