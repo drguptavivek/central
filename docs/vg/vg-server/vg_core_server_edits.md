@@ -940,3 +940,103 @@ in `getodk/central-backend`. Use it to keep rebases manageable.
   +    expiresAt: session.expiresAt
      });
   ```
+
+- Date: 2026-02-08
+  File: lib/resources/sessions.js
+  Change summary: Implement two-phase TOTP login - Phase 1 creates 60s session without cookies, Phase 2 (after TOTP) sets cookies.
+  Reason: Prevent TOTP bypass via page refresh. Cookies only set after successful 2FA verification.
+  Risk/notes: High; modifies core session creation flow for TOTP-enabled users. Non-TOTP users unaffected. Temporary sessions expire in 60s (hardcoded).
+  Related commits/PRs: central-902
+  Diff:
+  ```diff
+  +++ b/lib/resources/sessions.js
+  @@ POST /v1/sessions
+  -  // Original: Always create session with cookies
+  +  // VG: Check if user has TOTP enabled (two-phase login)
+  +  return VgWebUserTotp.getByActorId(user.actorId)
+  +    .then((maybeTotpRecord) => (_, response) => {
+  +      if (maybeTotpRecord.isDefined() && maybeTotpRecord.get().totp_enabled) {
+  +        // VG: Create session in DB but DON'T set cookies yet
+  +        // Session expires in 60 seconds (for TOTP verification only)
+  +        const totpSessionExpiry = new Date(Date.now() + 60 * 1000);
+  +        return Promise.all([
+  +          Sessions.create(user.actor, totpSessionExpiry, false),  // totp_verified=false
+  +          Audits.log(user.actor, 'user.session.create', user.actor, { userAgent: headers['user-agent'] }),
+  +          Users.updateLastLoginAt(user)
+  +        ])
+  +          .then(([ session ]) => {
+  +            // Return session data WITHOUT setting cookies
+  +            // Token is ONLY valid for /sessions/totp-verify endpoint
+  +            return { ...session, requireTotp: true };
+  +          });
+  +      }
+  +      // No TOTP, create normal session (fully verified)
+  +      return createUserSession({ Audits, Sessions, Users }, headers, user, true)
+  +        .then((middleware) => middleware(_, response));
+  +    });
+  ```
+
+- Date: 2026-02-08
+  File: lib/model/query/sessions.js
+  Change summary: Extend session expiration to normal duration after TOTP verification (was 60s, now full sessionLifetime).
+  Reason: After successful TOTP verification, user should get full session duration, not just remaining seconds from 60s temp token.
+  Risk/notes: Low; isolated to markTotpVerified() function. Uses same sessionLifetime config as normal sessions.
+  Related commits/PRs: central-902
+  Diff:
+  ```diff
+  +++ b/lib/model/query/sessions.js
+  @@ markTotpVerified
+  -// Original: Only set totp_verified = true
+  +// VG: Mark session as TOTP verified and extend session expiration
+  +// Also extend session expiration to normal duration (was 60s for TOTP verification)
+   const markTotpVerified = (token) => ({ run }) =>
+  -  run(sql`UPDATE sessions SET totp_verified = true WHERE token = ${token}`);
+  +  run(sql`
+  +    UPDATE sessions
+  +    SET totp_verified = true,
+  +        "expiresAt" = statement_timestamp() + ${config.default.sessionLifetime + ' s'}::interval
+  +    WHERE token = ${token}
+  +  `);
+  ```
+
+- Date: 2026-02-08
+  File: lib/resources/vg-web-user-totp.js
+  Change summary: POST /sessions/totp-verify sets session cookies and returns updated session data after successful verification.
+  Reason: Complete two-phase login by setting cookies in Phase 2 (after TOTP verification). Frontend needs session data to proceed with login.
+  Risk/notes: Low; extends existing totp-verify endpoint. Cookies use same settings as createUserSession(). Re-fetches session to get updated expiresAt from markTotpVerified().
+  Related commits/PRs: central-902
+  Diff:
+  ```diff
+  +++ b/lib/resources/vg-web-user-totp.js
+  @@ POST /sessions/totp-verify
+     // Mark session as verified
+     await Sessions.markTotpVerified(session.token);
+
+  -  return success();
+  +  // VG: NOW set the session cookies (after TOTP verification)
+  +  // This completes the two-phase login
+  +  return (_, response) => {
+  +    const { SESSION_COOKIE } = require('../http/sessions');
+  +    const config = require('config');
+  +    const HTTPS_ENABLED = config.get('default.env.domain').startsWith('https://');
+  +
+  +    response.cookie(SESSION_COOKIE, session.token, {
+  +      httpOnly: true,
+  +      path: '/',
+  +      expires: session.expiresAt,
+  +      secure: HTTPS_ENABLED,
+  +      sameSite: 'Strict',
+  +    });
+  +
+  +    response.cookie('__csrf', session.csrf, {
+  +      expires: session.expiresAt,
+  +      secure: HTTPS_ENABLED,
+  +      sameSite: 'Strict',
+  +    });
+  +
+  +    // VG: Return session data so frontend can set session.data and proceed
+  +    // Re-fetch to get updated expiresAt (was extended in markTotpVerified)
+  +    return Sessions.getByBearerToken(session.token)
+  +      .then((maybeSession) => maybeSession.get());
+  +  };
+  ```

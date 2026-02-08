@@ -2316,8 +2316,99 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
 
 - Date: 2026-02-08
   File: src/components/account/login.vue
-  Change summary: Add two-phase TOTP 2FA verification flow (Phase 1: email/password, Phase 2: TOTP code or backup code).
-  Reason: Implement mandatory 2FA for web users as part of security hardening.
-  Risk/notes: Low; isolated to login component with backwards compatible session handling (requiresTotp only set by backend when user has 2FA enabled). Existing non-2FA login paths unaffected.
-  Related commits/PRs: central-901
+  Change summary: Add two-phase TOTP 2FA verification flow with temporary Bearer token authentication between phases.
+  Reason: Implement secure 2FA that prevents bypass via page refresh. Session cookies only set after TOTP verification.
+  Risk/notes: Medium; modifies core login flow. Phase 1 uses container.http.request() instead of session.request() to avoid triggering session expiration checks for 60-second temporary tokens. Phase 2 sends Bearer token in Authorization header.
+  Related commits/PRs: central-901, central-902
+  Diff:
+  ```diff
+  +++ b/src/components/account/login.vue
+  @@ data() {
+    return {
+      // ... existing fields ...
+  +    // TOTP 2FA phase
+  +    requiresTotp: false,
+  +    totpCode: '',
+  +    backupCode: '',
+  +    useBackupCode: false,
+  +    // VG: Temporary session token (not in cookie) for TOTP verification
+  +    tempSessionToken: null
+    };
+  },
+
+  @@ submit() {
+    if (!this.requiresTotp) {
+  -    // Original: session.request() for login
+  +    // Phase 1: Use http.request (not session.request) to avoid setting session.data
+  +    // This prevents expiration checks from triggering on 60s temporary token
+  +    this.container.http.request({
+        method: 'POST',
+        url: '/v1/sessions',
+        data: { email: this.email, password: this.password }
+      })
+  +      .then((response) => {
+  +        const sessionData = response.data;
+  +        if (sessionData && sessionData.requireTotp === true) {
+  +          // Store temp token (not in cookie) for TOTP verification
+  +          this.tempSessionToken = sessionData.token;
+  +          this.requiresTotp = true;
+  +          this.disabled = false;
+  +          return; // Don't proceed to login
+  +        }
+  +        // No TOTP required, proceed normally
+  +        this.session.data = sessionData;
+  +        return logIn(this.container, true)...
+  +      })
+  +  } else {
+  +    // Phase 2: Submit TOTP with Bearer authentication
+  +    this.container.http.request({
+  +      method: 'POST',
+  +      url: '/v1/sessions/totp-verify',
+  +      headers: {
+  +        Authorization: `Bearer ${this.tempSessionToken}`
+  +      },
+  +      data: { token: this.totpCode }
+  +    })
+  +      .then((response) => {
+  +        // Server has set cookies and returned session data
+  +        this.tempSessionToken = null;
+  +        this.session.data = response.data;
+  +        return logIn(this.container, true);
+  +      })...
+  +  }
+  }
+  ```
+
+- Date: 2026-02-08
+  File: src/util/session.js
+  Change summary: Add 403 error handling for TOTP verification required state in session restoration.
+  Reason: When user refreshes page during TOTP phase, server returns 403 (totp_verified=false). Frontend must clear session and redirect to login.
+  Risk/notes: Low; extends existing error handling in restoreSession(). Adds 403 to the list of expected auth errors (401, 401.2).
+  Related commits/PRs: central-902
+  Diff:
+  ```diff
+  +++ b/src/util/session.js
+  @@ restoreSession
+    .catch(error => {
+      const { response } = error;
+      if (response != null && isProblem(response.data)) {
+  -      // 401.2: Session deleted/invalid
+  -      // 401: Generic auth failure
+  -      if (response.data.code === 401.2 || response.data.code === 401) {
+  +      // VG: Handle all auth-related errors including TOTP verification failure
+  +      // 401.2: Session deleted/invalid
+  +      // 401: Generic auth failure
+  +      // 403: Insufficient rights (TOTP not verified)
+  +      if (response.data.code === 401.2 || response.data.code === 401 || response.data.code === 403) {
+          removeSessionFromStorage();
+          return;
+        }
+      }
+
+  +    // Also handle the TOTP verification required case (client-side check)
+      if (error.message === 'TOTP verification required') {
+        removeSessionFromStorage();
+        return;
+      }
+    });
   ```

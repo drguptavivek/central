@@ -1,8 +1,19 @@
-# VG App-User Auth API
+# VG API Documentation
 
-> **Last Updated**: 2026-01-02
+> **Last Updated**: 2026-02-08
 
+VG customizations to ODK Central authentication and security:
+- **App User Auth**: Short-lived, password-based bearer tokens for Collect users (project-scoped)
+- **Web User Auth**: TOTP 2FA two-phase login with session cookies (system-wide)
+
+## App User Auth
 Short-lived, password-based auth for Collect-style app users tied to projects. Tokens are bearer-only (no cookies) and expire based on `vg_app_user_session_ttl_days` (default 3 days) stored in `vg_settings`, with optional per-project overrides.
+
+## Web User TOTP 2FA
+Two-phase login for web users with TOTP (Time-based One-Time Password) 2FA enabled:
+- **Phase 1**: Email + Password → Returns temporary 60s token (no cookies)
+- **Phase 2**: TOTP code with Bearer auth → Sets session cookies, extends expiration
+- See [routes/web-user-totp.md](routes/web-user-totp.md) for API contracts
 
 ## Related docs
 
@@ -27,10 +38,17 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 - Rejects anything that does not meet all criteria
 
 ## Route docs
+
+### App User Auth
 - [routes/app-users.md](routes/app-users.md) (create/list/update/delete)
 - [routes/app-user-auth.md](routes/app-user-auth.md) (login, change/reset/revoke/active, project app-user settings)
 - [routes/app-user-sessions.md](routes/app-user-sessions.md) (session history + revoke)
+
+### Web User Auth & Security
+- [routes/web-user-totp.md](routes/web-user-totp.md) (TOTP 2FA login, setup, enable/disable, backup codes)
+- [routes/web-user-hardening.md](routes/web-user-hardening.md) (web user `/v1/sessions` hardening)
+- [routes/lockouts.md](routes/lockouts.md) (lockout clear)
+
+### System Configuration
 - [routes/system-settings.md](routes/system-settings.md) (get/update default session settings)
 - [routes/telemetry.md](routes/telemetry.md) (app user telemetry capture)
-- [routes/lockouts.md](routes/lockouts.md) (lockout clear)
-- [routes/web-user-hardening.md](routes/web-user-hardening.md) (web user `/v1/sessions` hardening)
