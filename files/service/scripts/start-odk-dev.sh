@@ -2,6 +2,9 @@
 set -o pipefail
 shopt -s inherit_errexit
 
+echo "installing/updating npm dependencies.."
+npm install
+
 echo "generating local service configuration.."
 
 # Pass these specifically as they are generated at runtime

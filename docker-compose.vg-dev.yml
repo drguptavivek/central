@@ -33,7 +33,9 @@ services:
       - dev_secrets:/etc/secrets
       - ./server/lib:/usr/odk/lib
       - ./server/config:/usr/odk/config
+      - ./server/test:/usr/odk/test
       - ./files/service/scripts/start-odk-dev.sh:/usr/odk/start-odk-dev.sh
+      - server-node-modules:/usr/odk/node_modules
     command: [ "wait-for-it", "${DB_HOST:-postgres14}:5432", "--", "./start-odk-dev.sh" ]
   client:
     build:
@@ -46,7 +48,7 @@ services:
       - VITE_APP_NAME=${VITE_APP_NAME:-}
     volumes:
       - ./client:/usr/src/app
-      - /usr/src/app/node_modules
+      - client-node-modules:/usr/src/app/node_modules
     networks:
       default:
         aliases:
@@ -89,3 +91,5 @@ services:
       - 63800:6380
 volumes:
   dev_secrets:
+  client-node-modules:
+  server-node-modules:

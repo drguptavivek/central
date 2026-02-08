@@ -21,6 +21,8 @@ This file captures local workflow conventions and key customizations for the
 docker compose up
 
 # Development (with modsecurity + dev tools)
+make dev-build
+# OR
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 ```
 
@@ -330,22 +332,31 @@ See server-side documentation in the server repo for details.
 
 ---
 
+## Migrations
+
+- Create migrations in `server/lib/model/migrations`
+- Migrations auto apply at dcoker app start-up
+
+## Tests
+- See Fixtures for test setup that sets up test DB, Fixtures and Migrations
+- Run tests inside docker conatiners
+
 ## DOCKER Commands 
 
 Run from central(meta) folder
 
 ```bash
 # DB Migartions
-docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
+
 
 # LOGS
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml logs service -f --tail=50
 
 # TESTS
 # DB for tests
-docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE ROLE odk_test_user LOGIN PASSWORD 'odk_test_pw'"
-docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE DATABASE odk_integration_test OWNER odk_test_user"
-docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server/docs/sql/vg_app_user_auth.sql
+# docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE ROLE odk_test_user LOGIN PASSWORD 'odk_test_pw'"
+#docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE DATABASE odk_integration_test OWNER odk_test_user"
+#docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server/docs/sql/vg_app_user_auth.sql
 
 # Test password util
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk &&  NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-password.js'
