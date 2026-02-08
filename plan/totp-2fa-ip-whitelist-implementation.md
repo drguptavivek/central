@@ -1,6 +1,6 @@
 # TOTP 2FA + IP Whitelist Implementation Plan
 
-**Session Date:** 2026-02-07
+**Session Date:** 2026-02-07 → 2026-02-08
 **Feature:** Two-Factor Authentication (TOTP) + Per-User IP Whitelist for ODK Central
 
 ## Overview
@@ -18,21 +18,24 @@ Key design: Same user can be both web user (with 2FA) AND API user (with IP whit
 ### ✅ Completed
 
 #### 1. Database Migration (Task #1)
-- ✅ Created tables in `server/docs/sql/vg_app_user_auth.sql`:
+- ✅ Created unified migration files:
+  - `server/lib/model/migrations/20260207-01-vg-security-features.up.sql`
+  - `server/lib/model/migrations/20260207-01-vg-security-features.down.sql`
+  - `server/lib/model/migrations/20260207-01-vg-security-features.js`
+- ✅ Tables created:
   - `vg_web_user_totp` - TOTP secrets (encrypted)
   - `vg_web_user_totp_backup_codes` - Backup codes (bcrypt hashed)
   - `vg_web_user_totp_attempts` - Rate limiting tracking
   - `vg_user_ip_whitelist` - IP whitelist entries (CIDR support)
+  - Plus existing app-user auth tables (field_key_auth, sessions, telemetry)
 - ✅ Added `totp_verified` column to `sessions` table
 - ✅ Added vg_settings for 2FA configuration:
   - `vg_web_user_totp_mandatory` (default: false)
   - `vg_totp_max_failures` (default: 5)
   - `vg_totp_window_minutes` (default: 5)
   - `vg_totp_lock_duration_minutes` (default: 15)
-- ✅ Applied migration to production and test databases
 
-**Files Modified:**
-- `server/docs/sql/vg_app_user_auth.sql`
+**Migration Blocker RESOLVED:** The citext `hash_text` conflict was resolved by creating a proper migration file using the `pure-sql-migration` pattern like upstream migrations.
 
 #### 2. TOTP Utilities (Task #2)
 - ✅ Installed dependencies: `speakeasy`, `qrcode`
@@ -119,23 +122,11 @@ Key design: Same user can be both web user (with 2FA) AND API user (with IP whit
   - ✅ Test backup code generation
   - ✅ 25 tests passing
 
-- 🚧 **Task #9:** Write backend integration tests for TOTP flow - **IN PROGRESS - NEW BLOCKER**
-  - Test file: `test/integration/api/vg-web-user-totp.js` - ✅ CREATED
-  - Test fixture: `test/integration/fixtures/04-vg-web-user-totp.js` - ✅ CREATED
-  - **PREVIOUS BLOCKER RESOLVED:** Fixed test framework cleanup in `server/test/integration/setup.js`
-    - Added superuser connection to drop all objects (tables, sequences, enums)
-    - Fixed SQL query for enum types (joined with pg_namespace)
-  - **NEW BLOCKER:** Service migrations fail with "function hash_text already exists"
-    - Root cause: citext extension provides `hash_text` function, migrations try to create it
-    - Service enters restart loop, cannot start successfully
-    - Affects main `odk` database, preventing all testing
-  - **Workaround Options:**
-    1. Modify migration file to use `CREATE OR REPLACE FUNCTION` (upstream change, not ideal)
-    2. Drop citext extension before migrations, recreate after (complex)
-    3. Pre-create migration record to skip problematic migration
-    4. Use fresh database without citext initially
-  - **Status:** Integration test code is complete and ready to run once environment is fixed
-  - Test file: `test/integration/api/vg-web-user-totp.js`
+- ✅ **Task #9:** Write backend integration tests for TOTP flow - **COMPLETED**
+  - Test file: `test/integration/api/vg-web-user-totp.js` ✅
+  - Test fixture: `test/integration/fixtures/01-vg-web-user-totp.js` ✅
+  - Test runner script: `test/run-vg-tests.sh` ✅
+  - **BLOCKER RESOLVED:** Migration conflict fixed with proper `pure-sql-migration` pattern
   - Full 2FA setup flow (setup → enable → login)
   - TOTP verification during login
   - Backup code usage and marking as used
@@ -307,11 +298,11 @@ Key design: Same user can be both web user (with 2FA) AND API user (with IP whit
 # Unit tests
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/unit/util/vg-totp.js'
 
-# Integration tests - TOTP
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-web-user-totp.js'
+# Integration tests - TOTP (using test runner script)
+./test/run-vg-tests.sh
 
-# Integration tests - IP Whitelist
-docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-user-ip-whitelist.js'
+# Manual integration test
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml exec service sh -lc 'cd /usr/odk && NODE_CONFIG_ENV=test BCRYPT=insecure npx mocha test/integration/api/vg-web-user-totp.js'
 ```
 
 ---
@@ -346,12 +337,10 @@ WHERE "actorId"=(SELECT "actorId" FROM users WHERE email='user@example.com');
 
 ## Next Steps for Resume
 
-1. **Continue Task #3**: Complete backend query modules and domain logic
-2. **Test as you go**: Write unit tests alongside implementation
-3. **Core file edits**: Modify preprocessors.js and sessions.js (document carefully)
-4. **Frontend implementation**: Login flow, TOTP setup modal, settings UI
-5. **Integration tests**: Full flow testing
-6. **Documentation**: Admin and user guides
+1. **Commit and push current backend work** - All backend changes are uncommitted
+2. **Frontend implementation**: Login flow, TOTP setup modal, settings UI
+3. **IP whitelist integration tests** (optional - TOTP tests cover the patterns)
+4. **Documentation**: Admin and user guides
 
 ---
 
