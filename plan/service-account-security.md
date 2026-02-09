@@ -1,17 +1,33 @@
-# Service Account Security Implementation Plan
+# Web User Security Enhancement: API Tokens + Service Accounts
 
 > **Created:** 2026-02-08
-> **Status:** Draft
+> **Updated:** 2026-02-09 (Revised approach)
+> **Status:** SUPERSEDED - See /home/vivek/.claude/plans/twinkly-marinating-beacon.md
 > **Priority:** High (Security Enhancement)
 
 ---
 
-## Problem Statement
+## ⚠️ IMPORTANT UPDATE (2026-02-09)
+
+**This plan has been revised and expanded.** The new comprehensive plan is located at:
+`/home/vivek/.claude/plans/twinkly-marinating-beacon.md`
+
+**Key Changes:**
+1. **Added API Token Management** - For human laptop users (Jupyter, dynamic IPs)
+2. **Refined Service Accounts** - For automated systems (CI/CD, static IPs)
+3. **Clarified Scope** - Web users only, app users untouched, OpenRosa unchanged
+4. **VG Modularity** - API-first TDD workflow, core edits minimized and documented
+
+**Continue reading for original context, then refer to new plan for implementation details.**
+
+---
+
+## Problem Statement (Original)
 
 **Current Security Gap:**
 - Web user bearer tokens bypass TOTP checks (by design for automation)
-- No distinction between interactive users and service accounts
-- Same 24-hour token lifetime for humans and automation
+- No distinction between human laptop users and automated service accounts
+- Same 24-hour token lifetime for all use cases
 - No mandatory IP restrictions for programmatic access
 - Audit logs don't distinguish service account vs human activity
 
@@ -21,10 +37,58 @@
 - No way to enforce stricter policies for automation accounts
 - Hard to track/audit programmatic API usage separately
 
-**Use Case:**
-- User runs pyodk scripts for data extraction/automation
-- Uses web user credentials → gets bearer token → bypasses TOTP
-- Needs to maintain functionality while improving security
+**Use Cases (Revised):**
+
+1. **Human Laptop Users** (researchers, analysts):
+   - Run pyodk scripts from Jupyter notebooks
+   - Travel frequently, dynamic IPs (home ISP rotation, VPNs)
+   - Need: Long-lived tokens created via TOTP-protected UI
+   - Don't need: IP whitelist enforcement (mobility required)
+
+2. **Automated Service Accounts** (CI/CD, cron jobs):
+   - Run from servers with static IPs
+   - Need: Mandatory IP whitelist, shorter sessions
+   - Need: Clear audit trail
+
+---
+
+## Revised Solution (2026-02-09)
+
+**TWO Complementary Systems:**
+
+### 1. API Token Management (NEW)
+- Human users create long-lived tokens (30-365 days) via TOTP-protected UI
+- Tokens work from any IP (no whitelist enforcement for regular users)
+- Revocable, trackable, displayed once
+- Pattern: GitHub Personal Access Tokens
+
+### 2. Service Account Flag (ENHANCED)
+- Mark users as "service accounts" (automated systems)
+- Mandatory IP whitelist for ALL auth methods (tokens + sessions)
+- Shorter session lifetime (1 hour vs 24 hours)
+- Clear audit logging (serviceAccount: true)
+
+**Benefits:**
+- ✅ Human laptop users: Create tokens in UI, use from anywhere
+- ✅ Service accounts: Mandatory IP whitelist, shorter exposure window
+- ✅ Clear separation: human vs automation
+- ✅ No breaking changes to app users or OpenRosa
+
+---
+
+## CRITICAL CONSTRAINTS (Added 2026-02-09)
+
+**MUST NOT CHANGE:**
+- ❌ App user authentication (linked to MEDRES-ODK-Collect fork)
+- ❌ OpenRosa protocol (used by ODK Collect)
+- ❌ Field key authentication
+
+**CAN CHANGE:**
+- ✅ Web user authentication (API tokens, service accounts)
+- ✅ Web UI (token management, service account settings)
+
+**OUT OF SCOPE:**
+- pyodk compatibility (future separate project)
 
 ---
 
@@ -57,25 +121,27 @@ const authBySessionToken = (token, isCookie = false) => {
 
 ---
 
-## Proposed Solution
+## Solution Overview (See Full Plan for Details)
 
-**Three-Part Approach:**
+**Implementation Structure:**
 
-### 1. Service Account Flag
-Mark web users as service accounts in database
+### Part 1: API Token Management
+- New table: `vg_api_tokens`
+- Token format: `vg_tkn_<random>_<checksum>`
+- Created via TOTP-protected UI
+- NOT subject to IP whitelist (for regular users)
+- Revocable, trackable
 
-### 2. Mandatory IP Whitelist
-Enforce IP whitelist for all service accounts
+### Part 2: Service Account System
+- New column: `users.is_service_account`
+- Mandatory IP whitelist enforcement
+- 1-hour session lifetime
+- Audit flag: `serviceAccount: true`
 
-### 3. Shorter Token Lifetime
-Reduce token lifetime from 24 hours → 1 hour for service accounts
-
-**Benefits:**
-- ✅ Compatible with pyodk (no breaking changes)
-- ✅ Enforces location-based security
-- ✅ Reduces token exposure window
-- ✅ Clear audit trail (service vs human)
-- ✅ Progressive enhancement (can be enabled per-user)
+### Part 3: Integration
+- Detect API tokens in preprocessors.js (vg_tkn_ prefix)
+- Service accounts: enforce IP for both tokens AND sessions
+- Regular users: optional IP whitelist
 
 ---
 

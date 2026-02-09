@@ -241,3 +241,130 @@
    - 8-character alphanumeric (high entropy)
    - 10 codes per user
    - Encrypted at rest
+
+---
+
+## Enrollment Prompts & Mandatory 2FA
+
+### Dismiss Enrollment Prompt
+**POST /v1/users/:id/totp/dismiss-enrollment-prompt**
+
+- Auth: Web user session (self) or admin.
+- Permissions: User can dismiss their own prompt. Admin can dismiss for others.
+- Request (JSON):
+  - `remindAfterDays` (optional, number or null): Days until next reminder. Null = permanent dismissal.
+  ```json
+  { "remindAfterDays": 7 }
+  ```
+  or
+  ```json
+  { "remindAfterDays": null }
+  ```
+- Response — HTTP 200, application/json:
+  ```json
+  { "success": true }
+  ```
+
+- Validation:
+  - `remindAfterDays` must be number 1-365 or null → `400.11` `invalidDataTypeOfParameter`
+  - User's role in mandatory roles list → `403` `insufficientRights` (cannot dismiss)
+
+**Behavior:**
+- `remindAfterDays: 7` → Sets `totp_prompt_remind_after` to 7 days from now
+- `remindAfterDays: null` → Sets `totp_prompt_dismissed_at` to now (permanent)
+- Mandatory roles cannot dismiss (403 error)
+
+---
+
+### Get Mandatory Roles Configuration
+**GET /v1/system/settings/totp-mandatory-roles**
+
+- Auth: Web user session with `config.read` permission (admin only).
+- Response — HTTP 200, application/json:
+  ```json
+  {
+    "mandatoryRoles": ["admin", "manager"]
+  }
+  ```
+
+**Purpose:** Returns list of roles that require mandatory TOTP enrollment.
+
+---
+
+### Update Mandatory Roles Configuration
+**PUT /v1/system/settings/totp-mandatory-roles**
+
+- Auth: Web user session with `config.set` permission (admin only).
+- Request (JSON):
+  - `mandatoryRoles` (mandatory, array of strings): Role IDs that require 2FA.
+  ```json
+  {
+    "mandatoryRoles": ["admin"]
+  }
+  ```
+- Response — HTTP 200, application/json:
+  ```json
+  { "success": true }
+  ```
+
+- Validation:
+  - `mandatoryRoles` must be array of strings → `400.11` `invalidDataTypeOfParameter`
+  - All roles must exist in system → `400.11` `invalidDataTypeOfParameter`
+
+**Effect:** Updates `vg_settings` table with new mandatory roles. Users in these roles will be forced to set up TOTP on next login if they don't have it enabled.
+
+---
+
+## Login Response Flags (Enrollment)
+
+### Standard Login Response (No TOTP)
+**POST /v1/sessions** (when user has no TOTP enabled)
+
+**Response A** (Non-mandatory role, should prompt):
+```json
+{
+  "actorId": 5,
+  "token": "WlHP4MlKyhIwowR6YhV7bQTG...",
+  "expiresAt": "2026-02-09T08:32:29.843Z",
+  "createdAt": "2026-02-08T08:32:29.848Z",
+  "csrf": "AKOPikMi2RTj2v$Jg2j6yC...",
+  "totp_verified": true,
+  "shouldPromptTotpEnrollment": true
+}
+```
+Cookies are set. User proceeds to dashboard where optional enrollment modal is shown.
+
+**Response B** (Non-mandatory role, already dismissed):
+```json
+{
+  "actorId": 5,
+  "token": "WlHP4MlKyhIwowR6YhV7bQTG...",
+  "expiresAt": "2026-02-09T08:32:29.843Z",
+  "createdAt": "2026-02-08T08:32:29.848Z",
+  "csrf": "AKOPikMi2RTj2v$Jg2j6yC...",
+  "totp_verified": true,
+  "shouldPromptTotpEnrollment": false
+}
+```
+User dismissed prompt. No modal shown.
+
+**Response C** (Mandatory role, 2FA setup required):
+```json
+{
+  "actorId": 5,
+  "token": "WlHP4MlKyhIwowR6YhV7bQTG...",
+  "expiresAt": "2026-02-08T08:37:29.843Z",
+  "createdAt": "2026-02-08T08:32:29.848Z",
+  "csrf": "AKOPikMi2RTj2v$Jg2j6yC...",
+  "totp_verified": false,
+  "requireTotpSetup": true,
+  "mandatory": true
+}
+```
+⚠️ **No cookies set.** Token expires in 5 minutes. User cannot proceed until TOTP is set up. Frontend shows forced setup modal (non-dismissible).
+
+**Key differences from existing flows:**
+- `requireTotp: true` = User has 2FA enabled, needs to verify code (existing flow)
+- `requireTotpSetup: true` = User's role requires 2FA but they haven't set it up yet (NEW)
+- Both have `totp_verified: false` and no cookies set
+- Both are temporary sessions, but different purposes
