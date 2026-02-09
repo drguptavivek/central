@@ -1,7 +1,7 @@
 # TOTP 2FA Server API Documentation
 
-**Last Updated:** 2026-02-08
-**Status:** ✅ Production Ready
+**Last Updated:** 2026-02-09
+**Status:** ✅ Production Ready (Enrollment System Added)
 
 ---
 
@@ -186,6 +186,217 @@ ALTER TABLE sessions ADD COLUMN totp_verified BOOLEAN DEFAULT true;
   "enabledAt": "2026-01-15T10:30:00Z"
 }
 ```
+
+---
+
+### 6. Dismiss Enrollment Prompt
+
+**Endpoint:** `POST /v1/users/:id/totp/dismiss-enrollment-prompt`
+
+**Authentication:** Required (user can dismiss their own, admin can dismiss others)
+
+**Request Body:**
+```json
+{
+  "remindAfterDays": 7  // Number of days (1-365) or null for permanent
+}
+```
+
+**Response:** HTTP 200
+```json
+{
+  "ok": true
+}
+```
+
+**Response Codes:**
+- `200` - Successfully dismissed
+- `403` - User has mandatory role (cannot dismiss)
+- `400` - Invalid `remindAfterDays` value
+
+**Implementation Details:**
+- Non-mandatory users can dismiss enrollment prompts
+- `remindAfterDays: 7` - Remind in 7 days
+- `remindAfterDays: null` - Never remind (permanent dismissal)
+- Mandatory users (configured roles) cannot dismiss - returns 403
+- Records choice in `vg_web_user_totp` table
+
+---
+
+### 7. Get Mandatory TOTP Roles
+
+**Endpoint:** `GET /v1/system/settings/totp-mandatory-roles`
+
+**Authentication:** Admin only (requires `config.read` permission)
+
+**Response:** HTTP 200
+```json
+{
+  "mandatoryRoles": ["admin", "manager"]
+}
+```
+
+**Default:** `["admin"]` if not configured
+
+---
+
+### 8. Update Mandatory TOTP Roles
+
+**Endpoint:** `PUT /v1/system/settings/totp-mandatory-roles`
+
+**Authentication:** Admin only (requires `config.set` permission)
+
+**Request Body:**
+```json
+{
+  "mandatoryRoles": ["admin", "manager"]
+}
+```
+
+**Response:** HTTP 200
+```json
+{
+  "ok": true
+}
+```
+
+**Response Codes:**
+- `200` - Successfully updated
+- `400` - Invalid role names (must match system roles)
+- `403` - Insufficient permissions
+
+**Implementation Details:**
+- Validates role names against system roles table
+- Persists to `vg_settings` table as JSON string
+- Takes effect immediately on next login
+- Users promoted to mandatory roles see forced setup
+
+---
+
+## Enrollment Prompt System
+
+### Overview
+
+The enrollment system encourages or requires users to enable 2FA based on their role:
+
+- **Mandatory Enrollment**: Admins and configured roles MUST enable 2FA
+- **Optional Enrollment**: Other users are prompted but can dismiss
+- **Service Accounts**: Excluded from all enrollment (automated systems)
+
+### Enrollment Flow Logic
+
+**On Login (`POST /v1/sessions`):**
+
+1. **Check if TOTP already enabled**
+   - If enabled → Normal 2FA verification flow
+   - If not enabled → Check enrollment requirements
+
+2. **Check if role requires mandatory enrollment**
+   ```sql
+   SELECT r.system AS role_name
+   FROM assignments a
+   INNER JOIN roles r ON a."roleId" = r.id
+   WHERE a."actorId" = ? AND a."acteeId" = '*'
+   ```
+   - Compare user's roles against `vg_totp_mandatory_roles` setting
+   - If match → Return `requireTotpSetup: true, mandatory: true`
+
+3. **Check if optional prompt should be shown**
+   ```sql
+   SELECT totp_enabled, totp_prompt_dismissed_at, totp_prompt_remind_after
+   FROM vg_web_user_totp
+   WHERE "actorId" = ?
+   ```
+   - Never prompted before → Return `shouldPromptTotpEnrollment: true`
+   - Dismissed permanently → Return `shouldPromptTotpEnrollment: false`
+   - Remind date in future → Return `shouldPromptTotpEnrollment: false`
+   - Remind date passed → Return `shouldPromptTotpEnrollment: true`
+
+4. **Service Account Exclusion**
+   ```sql
+   SELECT is_service_account FROM users WHERE "actorId" = ?
+   ```
+   - If `true` → Skip ALL enrollment checks
+   - Service accounts rely on IP whitelist security
+
+### Database Schema Additions
+
+**`vg_web_user_totp`** - Enrollment tracking columns:
+```sql
+ALTER TABLE vg_web_user_totp ADD COLUMN
+  totp_prompt_dismissed_at TIMESTAMP NULL,     -- Permanent dismissal timestamp
+  totp_prompt_remind_after TIMESTAMP NULL;      -- Remind date for "later" option
+```
+
+**`users`** - Service account flag:
+```sql
+ALTER TABLE users ADD COLUMN
+  is_service_account BOOLEAN DEFAULT false,
+  service_account_marked_at TIMESTAMP NULL;
+```
+
+**`vg_settings`** - Mandatory roles configuration:
+```sql
+-- Stored as JSON array: ["admin", "manager"]
+vg_key_name = 'vg_totp_mandatory_roles'
+vg_key_value = '["admin"]'  -- Default
+```
+
+### Enrollment Response Flags
+
+**Mandatory Enrollment Required:**
+```json
+{
+  "token": "...",
+  "requireTotpSetup": true,
+  "mandatory": true,
+  "expiresAt": "..."
+}
+// No cookies set - user MUST complete setup
+// Frontend shows non-dismissible modal
+```
+
+**Optional Enrollment Suggested:**
+```json
+{
+  "token": "...",
+  "shouldPromptTotpEnrollment": true,
+  "expiresAt": "..."
+}
+// Cookies ARE set - login proceeds normally
+// Frontend shows dismissible prompt after navigation
+```
+
+**No Enrollment (TOTP already enabled or service account):**
+```json
+{
+  "token": "...",
+  "expiresAt": "..."
+}
+// Normal login - no enrollment flags
+```
+
+### Enrollment Prompt Dismissal
+
+**Database Update:**
+```sql
+-- Permanent dismissal
+UPDATE vg_web_user_totp
+SET totp_prompt_dismissed_at = NOW(),
+    totp_prompt_remind_after = NULL
+WHERE "actorId" = ?;
+
+-- Remind in 7 days
+UPDATE vg_web_user_totp
+SET totp_prompt_remind_after = NOW() + INTERVAL '7 days',
+    totp_prompt_dismissed_at = NULL
+WHERE "actorId" = ?;
+```
+
+**Access Control:**
+- Users can only dismiss their own prompts (or admin can dismiss others)
+- Mandatory roles CANNOT dismiss - endpoint returns 403
+- Validation: `remindAfterDays` must be 1-365 or null
 
 ---
 

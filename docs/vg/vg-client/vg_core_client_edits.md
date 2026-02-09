@@ -2412,3 +2412,115 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
       }
     });
   ```
+
+---
+
+## TOTP Enrollment Flow Integration (2026-02-09)
+
+### src/components/user/login.vue
+
+**Status:** Core upstream file (MODIFIED)
+
+**Change:** Detect and handle TOTP enrollment requirements at login
+
+**Location:** Login method, after successful password authentication
+
+**Reason:** Implement optional and mandatory TOTP enrollment flows. Users in mandatory roles must complete setup before accessing the system, while other users receive dismissible prompts.
+
+**Implementation:**
+- After successful login response, check for enrollment flags:
+  - `requireTotpSetup: true` → Show mandatory enrollment modal (non-dismissible)
+  - `shouldPromptTotpEnrollment: true` → Show optional enrollment modal (dismissible)
+  - `requireTotp: true` → Existing 2FA verification flow (user already has TOTP enabled)
+- Mandatory modal blocks access until setup complete
+- Optional modal shown on System Home after login completes
+
+**Code Pattern:**
+```javascript
+// In login method after POST /v1/sessions
+.then((response) => {
+  const session = response.data;
+  
+  // Check for mandatory setup requirement (new flow)
+  if (session.requireTotpSetup && session.mandatory) {
+    // Store temporary session token
+    this.tempSessionToken = session.token;
+    // Show non-dismissible setup modal
+    this.showMandatoryTotpSetupModal = true;
+    return;
+  }
+  
+  // Proceed with normal login (cookies set by server)
+  return logIn(this.container, true);
+})
+```
+
+**Related Files:**
+- `src/components/user/vg-totp-enrollment-modal.vue` - Optional enrollment modal
+- `src/components/user/vg-totp-mandatory-modal.vue` - Mandatory enrollment modal
+- `src/components/system/home.vue` - Shows optional modal on System Home
+
+**Related Issues:** beads: central-tbg, central-mox
+
+---
+
+### src/components/system/home.vue
+
+**Status:** Core upstream file (MODIFIED)
+
+**Change:** Display optional TOTP enrollment modal on System Home
+
+**Location:** Component mount lifecycle hook
+
+**Reason:** Non-mandatory users who haven't enabled 2FA should see a dismissible prompt when they access System Home.
+
+**Implementation:**
+- On component mount, check if current session includes `shouldPromptTotpEnrollment: true`
+- If true, display `vg-totp-enrollment-modal` component
+- Modal provides three options:
+  1. "Set up now" - Navigate to TOTP setup
+  2. "Remind me in 7 days" - Dismiss temporarily
+  3. "Don't ask again" - Dismiss permanently
+- Service accounts never see prompts (excluded server-side)
+
+**Code Pattern:**
+```javascript
+mounted() {
+  // Check if we should show optional enrollment prompt
+  const session = this.$store.state.session;
+  if (session && session.shouldPromptTotpEnrollment) {
+    this.showEnrollmentModal = true;
+  }
+}
+```
+
+**Related Files:**
+- `src/components/user/vg-totp-enrollment-modal.vue`
+- `src/util/request.js` - Dismiss enrollment API call
+
+**Related Issues:** beads: central-tbg
+
+---
+
+## Rebase Strategy for Enrollment Changes
+
+When rebasing onto upstream:
+
+1. **Check these core files** for conflicts:
+   - `src/components/user/login.vue`
+   - `src/components/system/home.vue`
+   - `src/util/session.js`
+
+2. **Preserve VG changes:**
+   - Enrollment flag handling in login.vue
+   - Optional modal display in home.vue
+   - 403 error handling in session.js
+
+3. **Test enrollment flows** after rebase:
+   - Optional enrollment (non-admin users)
+   - Mandatory enrollment (admin users)
+   - Service account exclusion
+   - Dismissal persistence
+
+4. **Update this doc** if line numbers or file structure changes
+

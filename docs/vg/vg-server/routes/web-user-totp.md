@@ -368,3 +368,95 @@ User dismissed prompt. No modal shown.
 - `requireTotpSetup: true` = User's role requires 2FA but they haven't set it up yet (NEW)
 - Both have `totp_verified: false` and no cookies set
 - Both are temporary sessions, but different purposes
+
+---
+
+## Enrollment: Dismiss Prompt
+**POST /v1/users/:id/totp/dismiss-enrollment-prompt**
+
+- Auth: Web user session (user can dismiss own, admin can dismiss others).
+- Request (JSON):
+  - `remindAfterDays` (optional, integer or null): Days until next reminder (1-365), or null for permanent dismissal.
+  ```json
+  { "remindAfterDays": 7 }  // Remind in 7 days
+  ```
+  ```json
+  { "remindAfterDays": null }  // Never remind (permanent)
+  ```
+- Response — HTTP 200, application/json:
+  ```json
+  { "ok": true }
+  ```
+- Error Responses:
+  - User has mandatory role (cannot dismiss) → `403` `insufficientRights`.
+  - Invalid `remindAfterDays` (< 1 or > 365) → `400` `unexpectedValue`.
+  - Missing permissions → `403` `insufficientRights`.
+
+---
+
+## System Settings: Get Mandatory Roles
+**GET /v1/system/settings/totp-mandatory-roles**
+
+- Auth: Admin (requires `config.read` permission).
+- Response — HTTP 200, application/json:
+  ```json
+  {
+    "mandatoryRoles": ["admin", "manager"]
+  }
+  ```
+- Default: `["admin"]` if not configured.
+
+---
+
+## System Settings: Update Mandatory Roles
+**PUT /v1/system/settings/totp-mandatory-roles**
+
+- Auth: Admin (requires `config.set` permission).
+- Request (JSON):
+  - `mandatoryRoles` (mandatory, array of strings): List of role system names requiring mandatory 2FA.
+  ```json
+  {
+    "mandatoryRoles": ["admin", "manager"]
+  }
+  ```
+- Response — HTTP 200, application/json:
+  ```json
+  { "ok": true }
+  ```
+- Error Responses:
+  - Invalid role names (not in system roles) → `400` `unexpectedValue`.
+  - Not an array or contains non-strings → `400` `invalidDataTypeOfParameter`.
+  - Missing permissions → `403` `insufficientRights`.
+
+---
+
+## Service Account Exclusions
+
+**Enrollment Behavior for Service Accounts:**
+
+Service accounts are automated systems that cannot perform 2FA (they're not humans). They are completely excluded from enrollment:
+
+- **Never prompted** for TOTP enrollment (no `shouldPromptTotpEnrollment` flag)
+- **Never required** to set up TOTP (no `requireTotpSetup` flag, even in mandatory roles)
+- Use IP whitelist security instead of 2FA
+
+**Database Flag:**
+```sql
+SELECT is_service_account FROM users WHERE "actorId" = ?
+```
+If `true`, skip ALL enrollment checks (mandatory and optional).
+
+**Login Response for Service Account:**
+```json
+{
+  "actorId": 42,
+  "token": "WlHP4MlKyhIwowR6YhV7bQTG...",
+  "expiresAt": "2026-02-09T08:32:29.843Z",
+  "createdAt": "2026-02-08T08:32:29.848Z",
+  "csrf": "AKOPikMi2RTj2v$Jg2j6yC...",
+  "totp_verified": true
+}
+```
+No enrollment flags, even if assigned to admin role.
+
+---

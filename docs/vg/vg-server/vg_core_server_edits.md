@@ -48,6 +48,78 @@ maybeOne(sql`SELECT u.is_service_account FROM users u WHERE u."actorId" = ${acto
 
 ---
 
+## server/lib/resources/sessions.js
+
+**Status:** Core upstream file (MODIFIED)
+
+**Recent Changes:** 2026-02-09 - TOTP enrollment flow integration
+
+### Change: Add enrollment detection to POST /v1/sessions
+
+**Location:** Lines 149-182 (POST endpoint handler)
+
+**Reason:** Implement optional and mandatory TOTP enrollment flows at login time. Users in mandatory roles must set up 2FA before accessing the system, while other users receive dismissible prompts.
+
+**Implementation:**
+- After successful password authentication, check if user needs TOTP enrollment
+- For mandatory roles (e.g., admin):
+  - Return temporary session without cookies
+  - Set `requireTotpSetup: true` and `mandatory: true` flags
+  - Session expires in 5 minutes
+  - User must complete setup before full access
+- For non-mandatory roles:
+  - Create full session with cookies  - Add `shouldPromptTotpEnrollment` flag if user should be prompted
+  - User can dismiss prompt (temporary or permanent)
+- Service accounts excluded from all enrollment checks
+
+**Code Pattern:**
+```javascript
+// Check if mandatory enrollment required
+return VgWebUserTotp.isRoleMandatoryForTotp(user.actorId)
+  .then((isMandatory) => {
+    if (isMandatory) {
+      // Create temporary session for setup (no cookies)
+      return Promise.all([
+        createUserSession({ Audits, Sessions, Users }, headers, user, false),
+        resolve(response)
+      ])
+        .then(([ session ]) => ({
+          ...session,
+          requireTotpSetup: true,
+          mandatory: true
+        }));
+    }
+
+    // Not mandatory - create full session with cookies
+    return createUserSession({ Audits, Sessions, Users }, headers, user, true)
+      .then((middleware) => middleware(_, response))
+      .then((sessionResult) => {
+        // Add optional enrollment prompt flag
+        return VgWebUserTotp.shouldPromptEnrollment(user.actorId)
+          .then((shouldPrompt) => ({
+            ...sessionResult,
+            shouldPromptTotpEnrollment: shouldPrompt
+          }));
+      });
+  });
+```
+
+**Related Files:**
+- `lib/model/query/vg-web-user-totp.js` - Enrollment logic
+- `lib/resources/vg-web-user-totp.js` - TOTP endpoints
+- `lib/resources/vg-settings.js` - Mandatory roles configuration
+
+**Dependencies:**
+- `vg_settings.vg_totp_mandatory_roles` setting (JSON array)
+- `users.totp_prompt_remind_after` column
+- `users.totp_prompt_dismissed_at` column
+- `users.is_service_account` column
+
+**Related Issues:**
+- beads: central-tbg (documentation), central-mox (service accounts)
+
+---
+
 ## Future Core File Edits (Planned)
 
 ### server/lib/http/preprocessors.js (Planned)

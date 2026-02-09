@@ -111,7 +111,77 @@ Adds a new System tab to configure session policies for app users.
 
 ---
 
-## 3) Enketo Status UI
+## 3) Web User TOTP 2FA Enrollment UI
+
+Adds TOTP (Time-based One-Time Password) enrollment system with optional and mandatory flows for web users.
+
+### Enrollment Modal Components
+
+- **Optional Enrollment Modal** - Shown to non-mandatory users who haven't enabled 2FA yet.
+  - `src/components/user/vg-totp-enrollment-modal.vue`
+  - Dismissible with "Remind me later" (7 days) or "Don't remind me" options.
+  - Users can also proceed directly to setup.
+
+- **Mandatory Enrollment Modal** - Shown to users in mandatory roles (e.g., admin) at login.
+  - `src/components/user/vg-totp-mandatory-modal.vue`
+  - Non-dismissible - users must complete setup to access the system.
+  - Prevents access until 2FA is enabled.
+
+### Login Flow Integration
+
+- Modified login flow to detect enrollment requirements.
+  - `src/components/user/login.vue`
+- Login response flags:
+  - `shouldPromptTotpEnrollment: true` → Show optional modal
+  - `requireTotpSetup: true` → Show mandatory modal (blocks access)
+  - `requireTotp: true` → Existing 2FA verification flow (user already has 2FA)
+
+### System Home Integration
+
+- Optional enrollment modal shown on System Home for eligible users.
+  - `src/components/system/home.vue`
+- Checks enrollment status on mount and shows appropriate modal.
+- Service accounts never see enrollment prompts.
+
+### API Integration
+
+New API paths added for enrollment management:
+- `POST /v1/users/:id/totp/dismiss-enrollment-prompt` - Dismiss optional prompt
+- `GET /v1/system/settings/totp-mandatory-roles` - Get mandatory roles config
+- `PUT /v1/system/settings/totp-mandatory-roles` - Update mandatory roles
+  - `src/util/request.js`
+
+### Enrollment Behavior
+
+**Optional Enrollment (non-mandatory roles):**
+1. User logs in successfully with cookies set.
+2. Response includes `shouldPromptTotpEnrollment: true`.
+3. Frontend shows dismissible modal on System Home.
+4. User can dismiss for 7 days, permanently, or proceed to setup.
+
+**Mandatory Enrollment (mandatory roles):**
+1. User logs in but receives temporary session (no cookies).
+2. Response includes `requireTotpSetup: true, mandatory: true`.
+3. Frontend shows non-dismissible setup modal.
+4. User must complete TOTP setup to proceed.
+5. After setup, full session is granted with cookies.
+
+**Service Accounts:**
+- Never receive enrollment prompts (excluded from all 2FA requirements).
+- Flag: `is_service_account = true` in database.
+
+### UI/UX Details
+
+- Modals use Bootstrap modal components with backdrop.
+- Optional modal has two dismiss options (remind later vs never).
+- Mandatory modal blocks all navigation until setup complete.
+- Clear messaging differentiates optional vs mandatory flows.
+- i18n support for all enrollment messaging.
+  - `src/locales/en.json5`
+
+---
+
+## 4) Enketo Status UI
 
 Adds a new System tab to view and manage Enketo IDs across all forms and projects.
 

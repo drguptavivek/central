@@ -13,6 +13,7 @@ VG stores session configuration in `vg_settings`.
   - `vg_app_user_lock_window_minutes` (default: 5)
   - `vg_app_user_lock_duration_minutes` (default: 10)
   - `admin_pw` (default: `'vg_custom'`)
+  - `vg_totp_mandatory_roles` (default: `["admin"]`)
 - **Runtime default only** (not seeded):
   - `vg_web_user_lock_duration_minutes` (default fallback: 10)
 
@@ -31,6 +32,12 @@ VG stores session configuration in `vg_settings`.
   - QR codes are generated dynamically from this setting.
   - Used to configure ODK Collect's settings lock feature.
   - Both "Show QR" and password reset QR codes include this value.
+- **TOTP mandatory roles** controls which web user roles require mandatory 2FA enrollment.
+  - Stored as JSON array of role system names (e.g., `["admin", "manager"]`).
+  - Users in mandatory roles cannot dismiss enrollment prompts.
+  - Users in mandatory roles are forced to set up TOTP before full login (session blocked until setup complete).
+  - Service accounts (`is_service_account = true`) are completely excluded from enrollment (mandatory or optional).
+  - Default: `["admin"]` (admins require 2FA by default).
 
 ## Update paths
 
@@ -40,8 +47,10 @@ VG stores session configuration in `vg_settings`.
   - `GET /projects/:projectId/app-users/settings` returns project-effective values for `vg_app_user_session_ttl_days`, `vg_app_user_session_cap`, `admin_pw`.
   - `PUT /projects/:projectId/app-users/settings` upserts project overrides for `vg_app_user_session_ttl_days`, `vg_app_user_session_cap`, `admin_pw`.
   - `POST /system/app-users/lockouts/clear` clears app-user login lockouts (does not change configuration values).
+  - `GET /v1/system/settings/totp-mandatory-roles` returns current mandatory roles configuration (requires `config.read`).
+  - `PUT /v1/system/settings/totp-mandatory-roles` updates mandatory roles (requires `config.set`).
 - DB:
-  - Update `vg_settings` directly for global values (including `vg_web_user_lock_duration_minutes`).
+  - Update `vg_settings` directly for global values (including `vg_web_user_lock_duration_minutes` and `vg_totp_mandatory_roles`).
   - Update `vg_project_settings` directly for project overrides of app-user settings (TTL/cap/admin_pw) and app-user lockout settings.
     - Note: app-user lockout settings do not currently have a public API.
 
@@ -58,6 +67,12 @@ VG stores session configuration in `vg_settings`.
   - API rejects empty/blank values; DB updates can bypass this, so keep it non-empty.
   - No complexity requirements (any string allowed).
   - No encryption (stored plain text for ODK Collect QR inclusion).
+- **TOTP mandatory roles**: Stored as JSON string (array of role system names).
+  - API validates that all roles exist in the system's defined roles.
+  - Must be a valid JSON array of strings (e.g., `["admin", "manager"]`).
+  - Empty array `[]` is valid (no roles require mandatory 2FA).
+  - Invalid role names are rejected with `400.11` `invalidDataTypeOfParameter`.
+  - Default if not set: `["admin"]`.
 
 ## QR Code Payload
 
@@ -101,3 +116,5 @@ The payload is:
 - `GET /projects/:projectId/app-users/settings` requires `project.read`.
 - `PUT /projects/:projectId/app-users/settings` requires `project.update`.
 - `POST /system/app-users/lockouts/clear` requires `config.set`.
+- `GET /v1/system/settings/totp-mandatory-roles` requires `config.read`.
+- `PUT /v1/system/settings/totp-mandatory-roles` requires `config.set`.
