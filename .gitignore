@@ -32,3 +32,7 @@ client/.nginx
 
 /backup/*
 /backup
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
