@@ -143,6 +143,7 @@ See: `docs/vg/vg-client/vg_client_changes.md`.
 
 - `docs/vg/qr-code-generation.md`
 - `docs/vg/qr-code-all-possible-managed-settings.md`
+- `docs/vg/changelog-v2025.4.3.md`
 
 
 ## Tests (where to look)
