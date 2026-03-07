@@ -27,3 +27,7 @@ __pycache__/
 /files/dkim/*
 .osgrep
 client/.nginx
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
