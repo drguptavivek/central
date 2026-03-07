@@ -28,12 +28,7 @@ __pycache__/
 .osgrep
 client/.nginx
 
-# Dolt database files (added by bd init)
-.dolt/
-*.db
-.beads/daemon.lock
-.beads/daemon.log
-.beads/daemon.pid
-.beads/interactions.jsonl
-.beads/backup/backup_state.json
+/.beads/
 
+/backup/*
+/backup
