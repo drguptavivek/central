@@ -36,6 +36,7 @@ dolt-monitor.pid
 
 # Backup data (auto-exported JSONL, local-only)
 backup/
+*.corrupt.backup/
 
 # Legacy files (from pre-Dolt versions)
 *.db
