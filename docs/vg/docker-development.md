@@ -1,6 +1,6 @@
 # Docker development (VG)
 
-> **Last Updated**: 2026-01-14
+> **Last Updated**: 2026-03-08
 
 This repo uses `docker compose` with layered config files for local development.
 
@@ -48,6 +48,12 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml build service nginx
 ```
 
+To rebuild the Dockerized frontend dev image as well:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml build client
+```
+
 ## Logs
 
 ```bash
@@ -67,8 +73,10 @@ We use a "Dev-Prod Parity" architecture where Nginx proxies to a Dockerized clie
 
 ### Architecture
 - **Nginx**: Mounts `files/nginx/odk.conf.dev.template` which proxies `/` to `http://client:8989`.
-- **Client Container**: Runs Vite in dev mode (internal port 8989).
+- **Client Container**: Runs `start-dev.sh`, installs npm dependencies at startup, creates `.nginx` temp paths, then starts nginx + Vite on internal port `8989`.
 - **HMR**: Upgraded via Nginx to WSS on port 443.
+- **Service Container**: Runs `files/service/scripts/start-odk-dev.sh`, which renders config, runs migrations, then starts the backend under `node --watch`.
+- **Nginx Container**: Uses `start-with-logrotate.sh` so nginx and modsecurity logs rotate inside the container during long-running dev sessions.
 
 ### How to Run
 The `client` service starts automatically with the dev stack:
@@ -77,6 +85,12 @@ The `client` service starts automatically with the dev stack:
 - Open your browser to your configured domain (e.g., `https://odk.epidemiology.tech` or `https://localhost:8443`).
 - **Do NOT** access port 8989 directly (it is internal only).
 - You should see the App. Changes to `client/src` will be reflected instantly (HMR).
+
+### Client Dev Container Notes
+
+- `client/Dockerfile.dev` includes Chromium so Karma tests can run inside the container.
+- `client/start-dev.sh` must exist in the bind-mounted client worktree; if it is missing on the checked-out branch, container startup will fail because the bind mount hides the copy baked into the image.
+- `.nginx` runtime temp directories are created at startup to avoid nginx permission/path failures on a clean branch.
 
 ## Ports
 
@@ -93,6 +107,22 @@ The `client` service starts automatically with the dev stack:
 
 ### `/version.txt` returns 404 in dev
 In the dev stack, nginx proxies `location /` to the Vite client (`client:8989`), so `/version.txt` is served by Vite rather than nginx static files. If your external proxy points at the dev stack, `/version.txt` may 404. Use the prod stack for `/version.txt`, or add a dev nginx override to serve it directly.
+
+### Service reports missing migration files
+If `service` reports that the migration directory is corrupt or references missing
+VG migration files from an older branch, reset the local dev database/volumes and
+start again from the clean branch state. In this migration, that issue was caused
+by stale local DB state from an older feature branch.
+
+### Client tests fail inside Docker
+The client test path in Docker currently depends on:
+
+- Chromium in `client/Dockerfile.dev`
+- Karma using a container-safe launcher
+- `test/run.sh` generating a simple `public/index.html` for the Karma/Webpack path
+
+Even with those fixes, the broader client suite still has unresolved application
+test failures/timeouts.
 
 ## Dev Secrets
 

@@ -1,9 +1,9 @@
 # VG Core Central Meta-Repo Edits
 
-**Updated:** 2026-01-14
+**Updated:** 2026-03-08
 **Repository:** `drguptavivek/central` (meta-repo)
 **Upstream:** `getodk/central`
-**Base Version:** v2025.4.1
+**Base Version:** v2025.4.3
 
 ---
 
@@ -37,7 +37,7 @@ This document tracks all modifications made to the ODK Central meta-repo that de
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                            VG FORK                                     │
 ├─────────────────────────────────────────────────────────────────────────┤
-│  docker-compose.yml (PURE UPSTREAM v2025.4.1) ✅                       │
+│  docker-compose.yml (PURE UPSTREAM v2025.4.3) ✅                       │
 │  ├── server → VG fork (drguptavivek/central-backend)                  │
 │  ├── client → VG fork (drguptavivek/central-frontend)                 │
 │  └── nginx → VG base image (with modsecurity)                         │
@@ -61,11 +61,11 @@ This document tracks all modifications made to the ODK Central meta-repo that de
 
 **Verification:**
 ```bash
-git diff v2025.4.1 -- docker-compose.yml
+git diff v2025.4.3 -- docker-compose.yml
 # Output: (empty - no differences)
 ```
 
-**Purpose:** Matches upstream ODK Central v2025.4.1 exactly
+**Purpose:** Matches upstream ODK Central v2025.4.3 exactly
 
 **Benefit:** When upstream releases v2025.5.0, just merge and resolve conflicts in .gitmodules
 
@@ -275,7 +275,7 @@ logs/
 |------|----------|-----|--------------|
 | `docker-compose.yml` | ✅ Exists | ✅ Pure upstream v2025.4.1 | ✅ Yes |
 | `docker-compose.override.yml` | ❌ None | ✅ Security configs | ✅ Yes |
-| `docker-compose.vg-dev.yml` | ✅ Exists | ✅ Same as upstream | ❌ Manual `-f` |
+| `docker-compose.vg-dev.yml` | ✅ Exists | ⚠️ VG dev overrides for client/service/nginx | ❌ Manual `-f` |
 
 ### Logging Comparison
 
@@ -377,8 +377,35 @@ git push origin vg-work
 
 **Should Merge Cleanly:**
 - `docker-compose.yml` - Pure upstream, should have no conflicts
-- `docker-compose.vg-dev.yml` - Same as upstream
+- `docker-compose.vg-dev.yml` - Review VG dev overrides against upstream dev stack changes
 - `files/nginx/setup-odk.sh` - Pure upstream
+
+---
+
+## Recent v2025.4.3 Dev Stack Deltas
+
+- `docker-compose.vg-dev.yml`
+  - Adds VG dev-only client container wiring (`client` service with `Dockerfile.dev` and bind-mounted source).
+  - Runs `service` through `files/service/scripts/start-odk-dev.sh` for dev startup and watch mode.
+  - Passes `SKIP_FRONTEND_BUILD=1` into nginx dev builds to avoid rebuilding the frontend in the nginx image during dev.
+  - Risk/notes: Medium; this file is no longer upstream-equivalent and must be reviewed on each upstream rebase.
+
+- `nginx.dockerfile`
+  - Adds `logrotate`, copies a logrotate wrapper script/config, and switches the image entrypoint to `start-with-logrotate.sh`.
+  - Keeps the existing frontend build path but allows dev builds to skip the frontend via `SKIP_FRONTEND_BUILD`.
+  - Risk/notes: Medium; core image startup changed from direct setup script execution to a wrapper entrypoint.
+
+- `files/nginx/start-with-logrotate.sh`
+  - New wrapper entrypoint that starts a background logrotate loop before delegating to `/scripts/setup-odk.sh`.
+  - Risk/notes: Low; self-contained wrapper, but it is a direct core image startup customization.
+
+- `files/nginx/logrotate-nginx.conf`
+  - New in-container rotation policy for nginx and modsecurity logs.
+  - Risk/notes: Low; operational only.
+
+- `files/service/scripts/start-odk-dev.sh`
+  - New dev-only service startup script that renders config, runs migrations, logs upgrade metadata, and launches the backend in `node --watch` mode.
+  - Risk/notes: Medium; dev runtime behavior differs from upstream service startup and should be validated against upstream server branch expectations.
 
 ---
 
@@ -440,6 +467,7 @@ git push origin vg-work
 |------|---------|---------|
 | 2026-01-13 | v2025.4.1 | Initial integration with minimal fork architecture |
 | 2026-01-14 | v2025.4.1 | Added comprehensive docker stack comparison |
+| 2026-03-08 | v2025.4.3 | Documented VG dev-stack deltas for client/service/nginx and updated upstream base version |
 
 ---
 
@@ -448,7 +476,7 @@ git push origin vg-work
 Before committing any changes to this meta-repo, verify:
 
 - [ ] `docker-compose.yml` matches upstream exactly
-- [ ] `docker-compose.vg-dev.yml` matches upstream exactly
+- [ ] `docker-compose.vg-dev.yml` contains only intentional VG dev overrides
 - [ ] `files/nginx/setup-odk.sh` matches upstream exactly
 - [ ] `files/nginx/odk.conf.template` has only 6 VG lines (marked with `# VG:`)
 - [ ] `.gitmodules` points to VG repos

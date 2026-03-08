@@ -1,9 +1,22 @@
 # HMR Client Implementation & Troubleshooting Guide
 
-**Date**: 2026-01-17
-**Status**: Implemented & Verified
+**Date**: 2026-03-08
+**Status**: Implemented, adjusted during v2025.4.3 upgrade
 
 This document details the technical challenges encountered and resolved while implementing the Dockerized Hot Module Replacement (HMR) workflow for ODK Central Frontend.
+
+## Update: v2025.4.3 Upgrade Adjustments
+
+During the `v2025.4.3` upgrade pass, the HMR/dev-container implementation was
+refined further:
+
+- `client/start-dev.sh` became the required runtime entrypoint for the client dev container.
+- `Dockerfile.dev` now explicitly invokes `/bin/bash /usr/src/app/start-dev.sh`.
+- startup now creates `.nginx` temp directories before nginx starts.
+- Chromium was added to the dev image so Karma tests can run inside Docker.
+- Karma/Webpack test runs now use a generated minimal `public/index.html` rather than the Vite HTML entrypoint.
+
+These are operational refinements on top of the original HMR architecture below.
 
 ## 1. Build Context Permission Errors (`EACCES`)
 
