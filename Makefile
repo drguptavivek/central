@@ -16,8 +16,8 @@ dev-logs:
 dev-build:
 	$(docker-compose-dev) up --detach --build
 
-.PHONY: stop dev-stop
-stop dev-stop:
+.PHONY: dev-stop
+dev-stop:
 	$(docker-compose-dev) stop
 
 docker-compose-prod := docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-prod.yml

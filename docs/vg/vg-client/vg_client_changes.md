@@ -15,7 +15,8 @@ forked Central client compared to the upstream ODK Central client.
 2) Admin System Settings UI for App User session TTL, session cap, and admin_pw (Collect).
 3) Enketo Status UI for viewing and regenerating Enketo IDs across all forms.
 4) Dev environment and proxy changes for `central.local` and Dockerized Vite.
-5) E2E test defaults and reliability tweaks.
+5) Session inactivity auto-logout with cross-tab synchronization.
+6) E2E / unit test defaults and reliability tweaks.
 
 ---
 
@@ -68,6 +69,15 @@ forked Central client compared to the upstream ODK Central client.
 - New **Project > App User Settings** tab for per-project TTL, cap, and admin_pw.
   - `src/components/project/vg-app-user-settings.vue`
   - `src/routes.js`
+
+### App User inactivity logout
+
+- Session handling now includes VG inactivity logout with cross-tab activity sync.
+- Core session orchestration calls a VG helper module rather than embedding policy logic directly.
+  - `src/util/session.js`
+  - `src/util/vg-session-inactivity.js`
+- VG route coverage for App Users was added in a new dedicated test file rather than rewriting upstream field-key specs.
+  - `test/components/field-key/vg-route.spec.js`
 
 ### App Users in Form Access
 
@@ -186,11 +196,14 @@ New child route added under `/system`:
 
 ---
 
-## 5) E2E Test Updates
+## 6) Test and Dev Runner Updates
 
 - Default domain changed to `central.local` in CLI runner.
 - Removes `--skip-install` option and always installs dependencies.
   - `e2e-tests/run-tests.sh`
+- Dockerized client test runs now rely on Chromium in `Dockerfile.dev`.
+- `test/run.sh` now generates a minimal `public/index.html` for Karma/Webpack test runs instead of reusing the Vite HTML entrypoint.
+- `karma.conf.js` uses a container-safe Chrome launcher and filters out `HtmlWebpackPlugin` for the Karma build path.
 - Uses `response.ok()` for Playwright response assertions.
   - `e2e-tests/backend-client.js`
   - `e2e-tests/global.setup.js`

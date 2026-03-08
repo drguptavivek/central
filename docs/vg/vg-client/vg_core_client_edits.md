@@ -16,6 +16,13 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
 
 ## Entries
 
+- Date: 2026-03-08
+  File: src/util/session.js
+  Change summary: Integrate VG inactivity logout checks into the core session timer and clear/reset shared activity state during logout/login.
+  Reason: Keep inactivity timeout behavior modular in `vg-session-inactivity.js` while using the existing upstream session lifecycle and cross-tab logout flow.
+  Risk/notes: Medium; touches shared session orchestration and browser storage behavior, but the VG-specific policy remains isolated in a VG helper module.
+  Related commits/PRs: local upgrade/client-v2025.4.3 worktree changes
+
 - Date: 2026-02-04
   File: src/components/navbar.vue
   Change summary: Replace hard-coded active nav background with $color-accent-secondary.
