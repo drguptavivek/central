@@ -37,6 +37,91 @@ git add -A && git commit && git push
 
 **No rebase needed** - just merge and keep override files!
 
+## Upstream Upgrade Workflow (Client + Central)
+
+Follow this checklist when a new upstream tag is released. See `docs/vg/changelog-v2025.4.x.md` for examples.
+
+### 1. Check for new tags
+
+```bash
+# Client
+cd client && git fetch upstream --tags
+git ls-remote upstream --tags "v20*" | grep -v "\^{}" | awk '{print $2}' | sed 's|refs/tags/||' | sort -V | tail -5
+
+# Server
+cd server && git fetch upstream --tags
+git ls-remote upstream --tags "v20*" | grep -v "\^{}" | ... | tail -5
+```
+
+### 2. Inspect upstream changes
+
+```bash
+git log v2025.4.3..v2025.4.4 --oneline          # commits in new tag
+git diff v2025.4.3..v2025.4.4 --stat             # files changed
+```
+
+### 3. Client upgrade branch
+
+```bash
+git checkout vg-work
+git checkout -b upgrade/client-vX.Y.Z
+git merge vX.Y.Z --no-ff                          # merge upstream tag
+# resolve conflicts: take upstream for non-VG files
+npm install && npm run build                      # validate
+git push origin upgrade/client-vX.Y.Z
+```
+
+### 4. Validate CI
+
+- Watch GitHub Actions **Build** job — must pass
+- Common VG-specific issues:
+  - `check-bundle-size.js`: VG bundles (vg-list, password-generator) need
+    special cases if upstream lowers the JS limit
+  - Fix: use `defineAsyncComponent(loadAsync(...))` for heavy modal imports
+
+### 5. Merge client to vg-work + tag
+
+```bash
+git checkout vg-work && git pull --rebase
+git merge upgrade/client-vX.Y.Z --no-ff -m "Merge: upstream client vX.Y.Z"
+git push origin vg-work
+git tag vX.Y.Z-vg.1 && git push origin vX.Y.Z-vg.1
+gh release create vX.Y.Z-vg.1 --repo drguptavivek/central-frontend \
+  --title "vX.Y.Z-vg.1" \
+  --notes "VG client release based on upstream central-frontend vX.Y.Z. <summary>"
+```
+
+### 6. Central meta-repo upgrade branch
+
+```bash
+cd /path/to/central
+git checkout vg-work && git checkout -b upgrade/central-vX.Y.Z
+# Bump client submodule
+git -C client checkout <new-vg-work-commit>
+git add client
+# Write changelog
+# docs/vg/changelog-vX.Y.Z.md  (copy from previous, update)
+git commit -m "Upgrade: client submodule to vX.Y.Z-vg.1 + changelog"
+git push origin upgrade/central-vX.Y.Z
+```
+
+### 7. Merge central to vg-work + tag + release
+
+```bash
+git checkout vg-work && git merge upgrade/central-vX.Y.Z --no-ff
+git push origin vg-work
+git tag vX.Y.Z-vg.1 && git push origin vX.Y.Z-vg.1
+gh release create vX.Y.Z-vg.1 \
+  --title "vX.Y.Z-vg.1" \
+  --notes "VG central meta-repo release based on upstream central vX.Y.Z. <summary>"
+```
+
+### 8. Known pre-existing test failures (do not fix during upgrades)
+
+- ~59 upstream FieldKey/app-user Karma tests: upstream tests for `list.vue`
+  which VG replaced with `vg-list.vue`
+- ~10 date formatting Karma tests: timezone offset on macOS, not a code issue
+
 ## Create Central VG Customization Specific Docs 
 - In docs/vg/ in the meta repo. Organized by  vg-client and vg-server
 
