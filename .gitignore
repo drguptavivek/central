@@ -27,3 +27,8 @@ __pycache__/
 /files/dkim/*
 .osgrep
 client/.nginx
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

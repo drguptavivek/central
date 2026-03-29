@@ -1,5 +1,5 @@
 {
-  "database": "jsonl",
+  "database": "dolt",
   "backend": "dolt",
   "dolt_mode": "server",
   "dolt_database": "central",
