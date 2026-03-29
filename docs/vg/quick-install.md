@@ -53,9 +53,11 @@ SSL_TYPE=letsencrypt     # letsencrypt | selfsign | customssl | upstream
 | `customssl` | You supply your own certs |
 | `upstream` | Behind a reverse proxy/LB that handles TLS |
 
-## 3. Start the stack
+## 3. Load env and start the stack
 
 ```bash
+set -a && source .env && set +a
+
 make prod
 ```
 
@@ -66,8 +68,8 @@ VG DB schema migrations run automatically when the `service` container starts.
 ## 4. Create the admin user
 
 ```bash
-docker compose exec service odk-cmd --email admin@yourdomain.com user-create
-docker compose exec service odk-cmd --email admin@yourdomain.com user-promote
+docker compose exec service odk-cmd --email "${SYSADMIN_EMAIL}" user-create
+docker compose exec service odk-cmd --email "${SYSADMIN_EMAIL}" user-promote
 ```
 
 ## 5. Verify
@@ -81,9 +83,12 @@ make prod-logs
 
 # Smoke test
 curl -kI "https://${DOMAIN}/version.txt"
+
+# Confirm VG tables created by migration
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" -c "\dt vg_*"
 ```
 
-Browse to `https://<DOMAIN>` and log in with the admin credentials.
+Browse to `https://${DOMAIN}` and log in with the admin credentials.
 
 ## Local testing (no real domain)
 

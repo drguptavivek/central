@@ -18,15 +18,26 @@ How to upgrade a running VG Central Docker installation to a new VG release.
 
 ## Before you start
 
-- Check the [changelog](changelog-v2025.4.4.md) for the target version (breaking changes, new settings).
-- Take a Postgres backup:
-  ```bash
-  docker exec central-postgres14-1 pg_dump -U odk odk | gzip > odk-backup-$(date +%Y%m%d).sql.gz
-  ```
-- Note your current version:
-  ```bash
-  curl -sk https://${DOMAIN}/version.txt
-  ```
+Load your `.env` into the shell so the commands below use the correct values:
+
+```bash
+set -a && source .env && set +a
+```
+
+Check the [changelog](changelog-v2025.4.4.md) for the target version (breaking changes, new settings).
+
+Take a Postgres backup:
+
+```bash
+docker compose exec postgres14 pg_dump -U "${DB_USER:-odk}" "${DB_NAME:-odk}" \
+  | gzip > odk-backup-$(date +%Y%m%d).sql.gz
+```
+
+Note your current version:
+
+```bash
+curl -sk "https://${DOMAIN}/version.txt"
+```
 
 ## Upgrade steps
 
@@ -54,18 +65,19 @@ To verify after startup:
 
 ```bash
 # Check migration table for the latest VG migration
-docker exec central-postgres14-1 psql -U odk -d odk \
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" \
   -c "SELECT name FROM knex_migrations ORDER BY id DESC LIMIT 5;"
 
 # Confirm VG tables exist
-docker exec central-postgres14-1 psql -U odk -d odk -c "\dt vg_*"
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" \
+  -c "\dt vg_*"
 ```
 
 ### 4. Verify
 
 ```bash
-make prod-logs                        # watch for errors
-curl -sk https://${DOMAIN}/version.txt
+make prod-logs                            # watch for errors
+curl -sk "https://${DOMAIN}/version.txt"
 ```
 
 Browse to the Central UI and confirm login works.
@@ -90,7 +102,7 @@ Postgres down-migrations are provided (`.down.sql`) for upstream migrations but 
 needed. If a VG migration must be reversed, apply the corresponding `.down.sql` manually:
 
 ```bash
-docker exec -i central-postgres14-1 psql -U odk -d odk \
+docker compose exec -T postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" \
   < server/lib/model/migrations/20260307-01-vg-app-user-auth-base.down.sql
 ```
 
@@ -100,14 +112,14 @@ New VG settings introduced in a release are seeded with defaults by the migratio
 To review current settings:
 
 ```bash
-docker exec central-postgres14-1 psql -U odk -d odk \
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" \
   -c "SELECT vg_key_name, vg_key_value FROM vg_settings ORDER BY vg_key_name;"
 ```
 
 To update a setting via the API:
 
 ```bash
-curl -s -X PUT https://${DOMAIN}/v1/system/settings \
+curl -s -X PUT "https://${DOMAIN}/v1/system/settings" \
   -H "Authorization: Bearer <admin-token>" \
   -H "Content-Type: application/json" \
   -d '{"vg_app_user_session_ttl_days": 7}'
