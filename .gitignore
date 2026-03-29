@@ -33,6 +33,7 @@ client/.nginx
 /backup/*
 /backup
 
-# Dolt database files (added by bd init)
+# Dolt / Beads runtime files (added by bd init)
 .dolt/
 *.db
+.beads-credential-key
