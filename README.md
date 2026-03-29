@@ -79,7 +79,7 @@ This model is designed to improve operational control and accountability in the 
 
 ## Deployment note
 
-- Apply the VG DB schema before using VG features: `server/docs/sql/vg_app_user_auth.sql`
+- VG DB schema is applied automatically by the server migration runner on startup (`20260307-01-vg-app-user-auth-base`). No manual SQL step required.
 
 
 ## ODK Collect fork summary (AIIMS ODK Collect)

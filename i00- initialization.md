@@ -1,3 +1,17 @@
+---
+title: VG Central — Initialization & Quick Reference
+type: howto
+domain: ODK-Central-vg
+tags:
+  - docker
+  - setup
+  - initialization
+  - deployment
+status: approved
+created: 2025-01-01
+updated: 2026-03-29
+---
+
 ## VG fork customization docs
 
 This repo includes VG-specific customizations for app user authentication and settings. For details, see:
@@ -99,7 +113,6 @@ Use the `Makefile` targets to run the common dev/prod compose commands:
 make dev          # up -d
 make dev-nond     # up (foreground)
 make dev-build    # up -d --build
-docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 
 make dev-logs     # logs --tail=50 -f
 make stop         # stop (dev)
@@ -108,7 +121,6 @@ make stop         # stop (dev)
 make prod         # up -d
 make prod-nond    # up (foreground)
 make prod-build   # up -d --build
-docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
 
 make prod-logs    # logs --tail=50 -f
 make prod-stop    # stop (prod)
@@ -129,7 +141,7 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml run --rm service npm install
 
 # Apply database migrations
-docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
+# VG schema migrations run automatically on service startup — no manual SQL needed
 
 # Start service and nginx
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d service nginx
@@ -175,7 +187,7 @@ tail -f logs/modsecurity/audit.log | jq
 ```bash
 docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE ROLE odk_test_user LOGIN PASSWORD 'odk_test_pw'"
 docker exec -e PGPASSWORD=odk central-postgres14-1 psql -U odk -c "CREATE DATABASE odk_integration_test OWNER odk_test_user"
-docker exec -i central-postgres14-1 psql -U odk -d odk_integration_test < server/docs/sql/vg_app_user_auth.sql
+# VG tables are created by the test fixture (server/test/integration/fixtures/03-vg-app-user-auth.js) — no manual SQL needed
 ```
 
 ### VG Password Unit Test

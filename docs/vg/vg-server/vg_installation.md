@@ -1,6 +1,20 @@
+---
+title: VG App User Auth - Installation
+type: howto
+domain: ODK-Central-vg
+tags:
+  - installation
+  - docker
+  - app-user-auth
+  - deployment
+status: approved
+created: 2026-01-02
+updated: 2026-03-29
+---
+
 # VG App User Auth - Installation
 
-> **Last Updated**: 2026-01-02
+> **Last Updated**: 2026-03-29
 
 This document lists the steps to set up VG-specific server changes for app-user auth.
 
@@ -12,16 +26,11 @@ This document lists the steps to set up VG-specific server changes for app-user 
 
 ## Step 1: Apply VG schema migration
 
-Run the VG SQL migration to create the new tables/columns and seed defaults:
+VG schema migrations run automatically when the `service` container starts via the standard Knex migration runner (`20260307-01-vg-app-user-auth-base`). **No manual SQL step is required.**
 
-```sh
-docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
-```
+> **Upgrading from a pre-March 2026 install?** If you previously applied `server/docs/sql/vg_app_user_auth.sql` manually, the migration is idempotent (`CREATE TABLE IF NOT EXISTS`) — the server will skip tables that already exist.
 
-If you're upgrading an existing VG install, re-run the same SQL to add new columns
-(`device_id`, `comments`), the telemetry table, and the `vg_settings` constraint.
-
-This creates:
+The migration creates:
 
 - `vg_field_key_auth`
 - `vg_settings` (seeds TTL 3 days, cap 3)
