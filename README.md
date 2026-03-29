@@ -113,6 +113,8 @@ See detailed docs in the ODK Collect fork repo: https://github.com/drguptavivek/
 
 ## Central Server and Client Fork Documentation
 
+- **Quick install**: `docs/vg/quick-install.md`
+- **Upgrade guide**: `docs/vg/upgrade-guide.md`
 - Technical overview (entry doc): `docs/vg/README-Technical-overview.md`
 - Docker development (VG): `docs/vg/docker-development.md`
 - Docker deployment (VG): `docs/vg/docker-deployment.md`
