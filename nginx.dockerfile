@@ -1,6 +1,6 @@
 ARG NGINX_BASE_IMAGE=drguptavivek/central-nginx-vg-base:6.0.1
 
-FROM node:22.22.0-slim AS intermediate
+FROM node:24.14.1-slim AS intermediate
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
