@@ -37,3 +37,6 @@ client/.nginx
 .dolt/
 *.db
 .beads-credential-key
+
+/test/nginx/node_modules
+/test/nginx/.eslintcache
