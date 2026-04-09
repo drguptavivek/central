@@ -2,7 +2,10 @@
 
 This is a VG fork of the upstream ODK Central meta repo (`client/` + `server/` submodules):
 
-- Upstream: `getodk/central`
+- Upstream: `getodk/central` — this repo is `v2025.4.4-vg.1`
+  - **Client** (`drguptavivek/central-frontend`): `v2025.4.4-vg.2` — based on upstream `v2025.4.4` (2026-03-12)
+  - **Server** (`drguptavivek/central-backend`): `v2025.4.2-vg.2` — based on upstream `v2025.4.2` (2026-01-27)
+  - **CRS** (`coreruleset/coreruleset`): `v4.25.0` (2026-03-28)
 - This fork focuses on operational security for App Users (Field Keys), and enabling an ODK Collect workflow with login + PIN protection.
 
 ## What's included in this fork
@@ -79,7 +82,7 @@ This model is designed to improve operational control and accountability in the 
 
 ## Deployment note
 
-- Apply the VG DB schema before using VG features: `server/docs/sql/vg_app_user_auth.sql`
+- VG DB schema is applied automatically by the server migration runner on startup (`20260307-01-vg-app-user-auth-base`). No manual SQL step required.
 
 
 ## ODK Collect fork summary (AIIMS ODK Collect)
@@ -110,6 +113,8 @@ See detailed docs in the ODK Collect fork repo: https://github.com/drguptavivek/
 
 ## Central Server and Client Fork Documentation
 
+- **Quick install**: `docs/vg/quick-install.md`
+- **Upgrade guide**: `docs/vg/upgrade-guide.md`
 - Technical overview (entry doc): `docs/vg/README-Technical-overview.md`
 - Docker development (VG): `docs/vg/docker-development.md`
 - Docker deployment (VG): `docs/vg/docker-deployment.md`

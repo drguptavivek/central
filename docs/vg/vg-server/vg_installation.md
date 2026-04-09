@@ -1,27 +1,38 @@
+---
+title: VG App User Auth - Installation
+type: howto
+domain: ODK-Central-vg
+tags:
+  - installation
+  - docker
+  - app-user-auth
+  - deployment
+status: approved
+created: 2026-01-02
+updated: 2026-03-29
+---
+
 # VG App User Auth - Installation
 
-> **Last Updated**: 2026-01-02
+> **Last Updated**: 2026-03-29
 
 This document lists the steps to set up VG-specific server changes for app-user auth.
 
 ## Prerequisites
 
 - Central backend set up per the upstream instructions.
-- Database access for applying the VG schema migration.
-- For Docker-based dev, the `central-postgres14-1` container must be running.
+- For Docker-based installs, load `.env` into your shell first so DB variables resolve correctly:
+  ```bash
+  set -a && source .env && set +a
+  ```
 
 ## Step 1: Apply VG schema migration
 
-Run the VG SQL migration to create the new tables/columns and seed defaults:
+VG schema migrations run automatically when the `service` container starts via the standard Knex migration runner (`20260307-01-vg-app-user-auth-base`). **No manual SQL step is required.**
 
-```sh
-docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
-```
+> **Upgrading from a pre-March 2026 install?** If you previously applied `server/docs/sql/vg_app_user_auth.sql` manually, the migration is idempotent (`CREATE TABLE IF NOT EXISTS`) — the server will skip tables that already exist.
 
-If you're upgrading an existing VG install, re-run the same SQL to add new columns
-(`device_id`, `comments`), the telemetry table, and the `vg_settings` constraint.
-
-This creates:
+The migration creates:
 
 - `vg_field_key_auth`
 - `vg_settings` (seeds TTL 3 days, cap 3)
@@ -35,7 +46,8 @@ This creates:
 Check the seeded settings:
 
 ```sh
-docker exec -i central-postgres14-1 psql -U odk -d odk -c "select vg_key_name, vg_key_value from vg_settings where vg_key_name in ('vg_app_user_session_ttl_days','vg_app_user_session_cap');"
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" \
+  -c "SELECT vg_key_name, vg_key_value FROM vg_settings WHERE vg_key_name IN ('vg_app_user_session_ttl_days','vg_app_user_session_cap');"
 ```
 
 Defaults are `3` and `3` respectively.
@@ -43,19 +55,19 @@ Defaults are `3` and `3` respectively.
 ## Step 2a: Verify tables and counts (optional)
 
 ```sh
-docker exec -i central-postgres14-1 psql -U odk -d odk -c "\\dt vg_*"
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" -c "\dt vg_*"
 ```
 
 ```sh
-docker exec -i central-postgres14-1 psql -U odk -d odk -c "select count(*) from vg_field_key_auth;"
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" -c "SELECT count(*) FROM vg_field_key_auth;"
 ```
 
 ```sh
-docker exec -i central-postgres14-1 psql -U odk -d odk -c "select count(*) from vg_app_user_login_attempts;"
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" -c "SELECT count(*) FROM vg_app_user_login_attempts;"
 ```
 
 ```sh
-docker exec -i central-postgres14-1 psql -U odk -d odk -c "select count(*) from vg_app_user_telemetry;"
+docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" -c "SELECT count(*) FROM vg_app_user_telemetry;"
 ```
 
 ## Step 3: Start the server
@@ -138,7 +150,8 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 - Older sessions are revoked on login when the cap is exceeded.
 - Login lockouts are stored in `vg_app_user_login_attempts`. To clear a lockout for a user+IP:
   ```sh
-  docker exec -i central-postgres14-1 psql -U odk -d odk -c "delete from vg_app_user_login_attempts where username='vguser' and ip='1.2.3.4' and succeeded=false;"
+  docker compose exec postgres14 psql -U "${DB_USER:-odk}" "${DB_NAME:-odk}" \
+    -c "DELETE FROM vg_app_user_login_attempts WHERE username='vguser' AND ip='1.2.3.4' AND succeeded=false;"
   ```
 - Admin alternative: `POST /system/app-users/lockouts/clear` with `{ "username": "...", "ip": "..." }`.
 - Session listing: `GET /projects/:projectId/app-users/:id/sessions` to view IP/user-agent/deviceId/comments metadata for active sessions.

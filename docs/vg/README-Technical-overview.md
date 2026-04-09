@@ -1,6 +1,19 @@
+---
+title: VG Fork — Technical Overview
+type: reference
+domain: ODK-Central-vg
+tags:
+  - architecture
+  - app-user-auth
+  - technical-overview
+status: approved
+created: 2026-01-02
+updated: 2026-03-29
+---
+
 # VG Fork: Short-Lived Token App Users
 
-> **Last Updated**: 2026-01-02
+> **Last Updated**: 2026-03-29
 
 This document provides a detailed overview of the VG “short-lived token app users” work: what changed, why, how it works end-to-end, and where the authoritative server/client documentation lives.
 
@@ -38,8 +51,12 @@ VG replaces that model with:
 4. When the token expires, the app usdocker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 
 ### 3. Apply DB migrations
+
+VG schema migrations run automatically when the `service` container starts. No manual SQL step required.
+
+To verify tables were created:
 ```bash
-docker exec -i central-postgres14-1 psql -U odk -d odk < server/docs/sql/vg_app_user_auth.sql
+docker exec -i central-postgres14-1 psql -U odk -d odk -c "\dt vg_*"
 ```
 
 ### 4. Install dependencies
