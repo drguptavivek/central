@@ -34,7 +34,7 @@ services:
       - ./server/lib:/usr/odk/lib
       - ./server/config:/usr/odk/config
       - ./files/service/scripts/start-odk-dev.sh:/usr/odk/start-odk-dev.sh
-    command: [ "wait-for-it", "${DB_HOST:-postgres14}:5432", "--", "./start-odk-dev.sh" ]
+    command: [ "./start-odk-dev.sh" ]
   client:
     build:
       context: ./client
