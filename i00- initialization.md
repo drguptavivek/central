@@ -228,3 +228,16 @@ docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-co
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml down
 ```
+
+## macOS Transfer Volume
+
+Upstream `docker-compose.yml` bind-mounts `/data/transfer:/data/transfer`, which
+does not work reliably on macOS because Docker Desktop only shares configured
+host paths. The VG dev override maps a repo-local transfer directory instead:
+
+```yaml
+./data/transfer:/data/transfer
+```
+
+Keep `data/transfer/.gitkeep` in the repo so fresh checkouts have the bind
+source directory before `docker compose up`.

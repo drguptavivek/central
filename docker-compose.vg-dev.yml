@@ -34,6 +34,7 @@ services:
       - ./server/lib:/usr/odk/lib
       - ./server/config:/usr/odk/config
       - ./files/service/scripts/start-odk-dev.sh:/usr/odk/start-odk-dev.sh
+      - ./data/transfer:/data/transfer
     command: [ "./start-odk-dev.sh" ]
   client:
     build:
