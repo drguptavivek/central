@@ -2,9 +2,9 @@
 
 This is a VG fork of the upstream ODK Central meta repo (`client/` + `server/` submodules):
 
-- Upstream: `getodk/central` — this repo is `v2025.4.4-vg.1`
-  - **Client** (`drguptavivek/central-frontend`): `v2025.4.4-vg.2` — based on upstream `v2025.4.4` (2026-03-12)
-  - **Server** (`drguptavivek/central-backend`): `v2025.4.2-vg.2` — based on upstream `v2025.4.2` (2026-01-27)
+- Upstream: `getodk/central` — this repo is `v2026.1.1-vg.1`
+  - **Client** (`drguptavivek/central-frontend`): `v2026.1.0-vg.3` — based on upstream `v2026.1.0` (2026-04-03)
+  - **Server** (`drguptavivek/central-backend`): `v2026.1.1-vg.1` — based on upstream `v2026.1.1` (2026-04-07)
   - **CRS** (`coreruleset/coreruleset`): `v4.25.0` (2026-03-28)
 - This fork focuses on operational security for App Users (Field Keys), and enabling an ODK Collect workflow with login + PIN protection.
 
