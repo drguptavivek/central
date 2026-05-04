@@ -80,7 +80,6 @@ services:
       - OIDC_ISSUER_URL=${OIDC_ISSUER_URL:-}
       - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
       - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
-      - PGAPPNAME=${PGAPPNAME:-odkcentral}
       - SENTRY_ORG_SUBDOMAIN=${SENTRY_ORG_SUBDOMAIN:-o130137}
       - SENTRY_KEY=${SENTRY_KEY:-3cf75f54983e473da6bd07daddf0d2ee}
       - SENTRY_PROJECT=${SENTRY_PROJECT:-1298632}
@@ -98,8 +97,6 @@ services:
     build:
       context: .
       dockerfile: nginx.dockerfile
-      args:
-        - VITE_APP_NAME=${VITE_APP_NAME:-}
     depends_on:
       - service
       - enketo
@@ -126,10 +123,8 @@ services:
       options:
         max-file: "30"
   pyxform:
-    image: 'ghcr.io/getodk/pyxform-http:v4.4.0'
+    image: 'ghcr.io/getodk/pyxform-http:v4.4.1'
     restart: always
-    ports:
-      - "${PYXFORM_PORT:-8085}:80"
   secrets:
     volumes:
       - secrets:/etc/secrets

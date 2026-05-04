@@ -1,9 +1,9 @@
 # VG Core Central Meta-Repo Edits
 
-**Updated:** 2026-03-08
+**Updated:** 2026-05-04
 **Repository:** `drguptavivek/central` (meta-repo)
 **Upstream:** `getodk/central`
-**Base Version:** v2025.4.3
+**Base Version:** v2026.1.1
 
 ---
 
