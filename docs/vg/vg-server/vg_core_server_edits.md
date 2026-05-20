@@ -1,6 +1,6 @@
 # VG Core Server Edits (Required Log)
 
-> **Last Updated**: 2026-01-02
+> **Last Updated**: 2026-05-20
 
 
 This log must include only VG fork modifications and exclude upstream master changes introduced by rebases or merges.
@@ -18,6 +18,13 @@ in `getodk/central-backend`. Use it to keep rebases manageable.
 - Related commits/PRs:
 
 ## Entries
+
+- Date: 2026-05-20
+  File: lib/http/service.js; lib/resources/odata.js; lib/resources/submissions.js; lib/resources/vg-telemetry.js
+  Change summary: Wire VG form-access resource, add project-scoped app-user telemetry, and require `submission.export` for OData/CSV/ZIP export endpoints.
+  Reason: Support a Data Manager role that can manage app users, form access, telemetry, and submissions without granting Connect Data or download/export rights.
+  Risk/notes: Medium; permission changes affect export/OData authorization. The new form-access behavior is isolated in `lib/resources/vg-form-access.js`.
+  Related commits/PRs: local Data Manager role work
 
 - Date: 2026-02-04
   File: lib/resources/users.js

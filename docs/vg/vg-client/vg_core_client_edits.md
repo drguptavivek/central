@@ -16,6 +16,13 @@ in `getodk/central-frontend`. Use it to keep rebases manageable.
 
 ## Entries
 
+- Date: 2026-05-20
+  File: src/components/project/form-access.vue; src/components/project/user/list.vue; src/components/project/vg-telemetry.vue; src/request-data/resources.js; src/routes.js; src/util/request.js; test/data/index.js; test/data/projects.js; test/data/seed.js; test/data/submissions.js; test/components/project/form-access.spec.js; test/components/project/user/list.spec.js
+  Change summary: Add Data Manager role visibility, route guards, project-scoped telemetry/form-access endpoints, and move VG test-data role/GeoJSON helpers into `vg-*` modules.
+  Reason: Support the VG Data Manager role with narrow access to app-user management, telemetry, form access, and submissions while avoiding broad project/form/admin permissions.
+  Risk/notes: Medium; touches route authorization and test fixtures. Custom helper logic is scoped into `test/data/vg-projects.js` and `test/data/vg-submissions.js`.
+  Related commits/PRs: local Data Manager role work
+
 - Date: 2026-03-08
   File: src/util/session.js
   Change summary: Integrate VG inactivity logout checks into the core session timer and clear/reset shared activity state during logout/login.
