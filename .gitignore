@@ -40,3 +40,5 @@ client/.nginx
 
 /test/nginx/node_modules
 /test/nginx/.eslintcache
+
+/backups/
