@@ -39,6 +39,7 @@ services:
     build:
       context: ./client
       dockerfile: Dockerfile.dev
+    restart: always
     # Ports are NOT published to host, only internal network
     expose:
       - "8989"

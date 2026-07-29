@@ -20,6 +20,16 @@ dev-build:
 dev-stop:
 	$(docker-compose-dev) stop
 
+.PHONY: dev-autostart-install
+dev-autostart-install:
+	sudo install -m 0644 files/systemd/central-dev.service /etc/systemd/system/central-dev.service
+	sudo systemctl daemon-reload
+	sudo systemctl enable central-dev.service
+
+.PHONY: dev-autostart-status
+dev-autostart-status:
+	systemctl status central-dev.service --no-pager
+
 docker-compose-prod := docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-prod.yml
 
 .PHONY: prod

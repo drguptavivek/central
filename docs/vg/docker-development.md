@@ -36,6 +36,18 @@ make stop  # Stop the dev stack
 docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml up -d
 ```
 
+## Start on VM boot
+
+The dev stack includes restart policies for long-running containers, including the Vite `client` container. To also create/start the Compose project after a VM reboot, install the tracked systemd unit:
+
+```bash
+make dev-autostart-install
+make dev-autostart-status
+```
+
+The unit runs `make dev` from `/home/ndus/central` after Docker and the network are available.
+
+
 ## Access the application
 
 - **Frontend**: https://central.local

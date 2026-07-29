@@ -1,0 +1,19 @@
+[Unit]
+Description=ODK Central VG development stack
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ndus
+Group=ndus
+SupplementaryGroups=docker
+WorkingDirectory=/home/ndus/central
+ExecStart=/usr/bin/make dev
+ExecStop=/usr/bin/make dev-stop
+RemainAfterExit=yes
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target
