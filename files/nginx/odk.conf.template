@@ -40,7 +40,7 @@ map "$request_method::$uri$is_args$args" $cache_strategy {
 
   # enketo
   ~^(GET|HEAD)::/-(/x)?/css/                 "revalidate";
-  ~^(GET|HEAD)::/-(/x)?/fonts/.*?v=          "immutable";
+  ~^(GET|HEAD)::/-(/x)?/fonts/.*\?v=         "immutable";
   ~^(GET|HEAD)::/-(/x)?/fonts/               "revalidate";
   ~^(GET|HEAD)::/-(/x)?/images/              "revalidate";
   ~^(GET|HEAD)::/-(/x)?/js/build/chunks/     "immutable";
@@ -85,16 +85,33 @@ map $arg_st $redirect_single_prefix {
   default "/new${is_args}${args}${qp_deliminator}single=true";
 }
 
-# Use 'none' per directive instead of falling back to default-src to make CSP violation reports more specific
 # Note: using $request_uri here remains safe while percent-encodings are not
 # normalised in frontend URLs.  Tracked at https://github.com/getodk/central/issues/1532
-map $request_uri $central_frontend_csp {
-  # Web Forms CSP for /f/... and /projects/.../forms/... routes
+map $request_uri $spa_name {
+  # form routes: approximately /f/... and /projects/.../forms/...
   ~^/(?:f/[^/]+(?:/.*)?|projects/\d+/forms/[^/]+/(?:(?:draft/)?(?:preview|submissions/new(?:/offline)?)|submissions/[^/]+/edit)(?:/)?)(?:\?.*)?$
-    "default-src 'report-sample' 'none'; connect-src 'self' https:; font-src 'self' data:; form-action 'self'; frame-ancestors 'self'; frame-src 'self' https://getodk.github.io/central/; img-src blob: data: https:; manifest-src 'self'; media-src blob:; object-src 'none'; script-src 'report-sample' 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'report-sample' blob:; report-uri /csp-report";
+    form-wrapper;
+  default
+    root-app;
+}
+map $spa_name $spa_html {
+  form-wrapper "/apps/forms/index.html";
+  default      "/index.html";
+}
+map $spa_name $spa_csp {
+  # Use 'none' per directive instead of falling back to default-src to make CSP violation reports more specific
+
+  form-wrapper
+    "default-src 'report-sample' 'none'; connect-src 'self' https:; font-src 'self' data:; form-action 'self'; frame-ancestors 'self'; frame-src 'self' https://getodk.github.io/central/; img-src blob: data: https:; manifest-src 'self'; media-src blob:; object-src 'none'; script-src 'report-sample' 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'report-sample' blob: data:; report-uri /csp-report";
 
   default
-    "default-src 'report-sample' 'none'; connect-src 'self' https://translate.google.com https://translate.googleapis.com; font-src 'self'; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://getodk.github.io/central/; img-src data: https:; manifest-src 'self'; media-src 'none'; object-src 'none'; script-src 'report-sample' 'self'; style-src 'report-sample' 'self'; style-src-attr 'unsafe-inline'; worker-src 'report-sample' blob:; report-uri /csp-report";
+    "default-src 'report-sample' 'none'; connect-src 'self' ${SENTRY_DSN_FRONTEND_ROOT} https://translate.google.com https://translate.googleapis.com; font-src 'self'; form-action 'self'; frame-ancestors 'none'; frame-src 'self' https://getodk.github.io/central/; img-src data: https:; manifest-src 'self'; media-src 'none'; object-src 'none'; script-src 'report-sample' 'self'; style-src 'report-sample' 'self'; style-src-attr 'unsafe-inline'; worker-src 'report-sample' blob:; report-uri /csp-report";
+}
+
+map $upstream_http_content_security_policy $central_backend_csp {
+  # pass through any Content-Security-Policy received from upstream services (central-backend, enketo)
+  ""      "default-src 'report-sample' 'none'; form-action 'none'; frame-ancestors 'none'; img-src http://${DOMAIN}/favicon.ico; report-uri /csp-report";
+  default $upstream_http_content_security_policy;
 }
 
 server {
@@ -114,14 +131,7 @@ server {
 
   server_tokens off;
 
-  # VG: Enable ModSecurity + OWASP CRS
-  modsecurity on;
-  modsecurity_rules_file /etc/modsecurity/modsecurity-odk.conf;
-
-  # VG: Hardening via headers-more
-  include /usr/share/odk/nginx/vg-headers-more.conf;
-
-  add_header Content-Security-Policy-Report-Only "default-src 'report-sample' 'none'; connect-src https://translate.google.com https://translate.googleapis.com; img-src https://translate.google.com; report-uri /csp-report" always;
+  add_header Content-Security-Policy "default-src 'report-sample' 'none'; connect-src https://translate.google.com https://translate.googleapis.com; img-src https://translate.google.com; report-uri /csp-report" always;
   include /usr/share/odk/nginx/common-headers.conf;
 
   client_max_body_size 100m;
@@ -166,6 +176,10 @@ server {
   # For that iframe to work, we'll need another path prefix (enketo-passthrough) under which we can
   # reach Enketo — this one will not be intercepted.
   location ~ ^/(?:-|enketo-passthrough)(?:/|$) {
+    if ($args ~* "(^|&|;)(x|%78|%58)?(f|%66|%46)(o|%6f|%4f)(r|%72|%52)(m|%6d|%4d)(=[^;&]*)?(&|;|$)" ) {
+      return 400;
+    }
+
     rewrite ^/enketo-passthrough(/.*)?$ /-$1 break;
     proxy_pass http://enketo:8005;
     proxy_redirect off;
@@ -176,45 +190,48 @@ server {
     # More lax CSP for enketo-express:
     # Google Maps API: https://developers.google.com/maps/documentation/javascript/content-security-policy
     # Use 'none' per directive instead of falling back to default-src to make CSP violation reports more specific
+    proxy_hide_header Content-Security-Policy;
     proxy_hide_header Content-Security-Policy-Report-Only;
-    add_header Content-Security-Policy-Report-Only "default-src 'report-sample' 'none'; connect-src 'self' blob: https://maps.googleapis.com/ https://maps.google.com/ https://maps.gstatic.com/mapfiles/ https://fonts.gstatic.com/ https://fonts.googleapis.com/ https://translate.google.com https://translate.googleapis.com; font-src 'self' https://fonts.gstatic.com/; form-action 'self'; frame-ancestors 'self'; frame-src 'none'; img-src data: blob: jr: 'self' https://maps.google.com/maps/ https://maps.gstatic.com/mapfiles/ https://maps.googleapis.com/maps/ https://tile.openstreetmap.org/ https://translate.google.com; manifest-src 'none'; media-src blob: jr: 'self'; object-src 'none'; script-src 'report-sample' 'unsafe-inline' 'self' https://maps.googleapis.com/maps/api/js/ https://maps.google.com/maps/ https://maps.google.com/maps-api-v3/api/js/; style-src 'unsafe-inline' 'self' https://fonts.googleapis.com/css; style-src-attr 'unsafe-inline'; report-uri /csp-report" always;
+    add_header Content-Security-Policy "default-src 'report-sample' 'none'; connect-src 'self' blob: https://maps.googleapis.com/ https://maps.google.com/ https://maps.gstatic.com/mapfiles/ https://fonts.gstatic.com/ https://fonts.googleapis.com/ https://translate.google.com https://translate.googleapis.com; font-src 'self' https://fonts.gstatic.com/; form-action 'self'; frame-ancestors 'self'; frame-src 'none'; img-src data: blob: jr: 'self' https://maps.google.com/maps/ https://maps.gstatic.com/mapfiles/ https://maps.googleapis.com/maps/ https://tile.openstreetmap.org/ https://translate.google.com; manifest-src 'none'; media-src blob: jr: 'self'; object-src 'none'; script-src 'report-sample' 'unsafe-inline' 'self' https://maps.googleapis.com/maps/api/js/ https://maps.google.com/maps/ https://maps.google.com/maps-api-v3/api/js/; style-src 'unsafe-inline' 'self' https://fonts.googleapis.com/css; style-src-attr 'unsafe-inline'; report-uri /csp-report" always;
 
     include /usr/share/odk/nginx/common-headers.conf;
   }
   # End of Enketo Configuration.
 
-  location ~ ^/v\d+/oidc/callback$ {
-    include /usr/share/odk/nginx/common-headers.conf;
-    include /usr/share/odk/nginx/backend.conf;
-  }
-
+  # central-backend
   location ~ ^/v\d {
-    # VG: Disable CRS blocking rules for Central API (PATCH/PUT/DELETE methods)
-    modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
-
-    proxy_hide_header Content-Security-Policy-Report-Only;
-    add_header Content-Security-Policy-Report-Only "default-src 'report-sample' 'none'; form-action 'none'; frame-ancestors 'none'; report-uri /csp-report" always;
+    proxy_hide_header Content-Security-Policy;
+    add_header Content-Security-Policy $central_backend_csp always;
 
     include /usr/share/odk/nginx/common-headers.conf;
-    include /usr/share/odk/nginx/backend.conf;
+
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_pass http://service:8383;
+    proxy_redirect off;
+
+    # buffer requests, but not responses, so streaming out works.
+    proxy_request_buffering on;
+    proxy_buffering off;
+    proxy_read_timeout 2m;
   }
 
   location @blank.html {
     root /usr/share/nginx/html;
     try_files /blank.html =404;
 
-    add_header Content-Security-Policy-Report-Only "default-src 'report-sample' 'none'; connect-src https://translate.google.com https://translate.googleapis.com; form-action 'none'; frame-ancestors 'self'; img-src 'self' https://translate.google.com; report-uri /csp-report" always;
+    add_header Content-Security-Policy "default-src 'report-sample' 'none'; connect-src https://translate.google.com https://translate.googleapis.com; form-action 'self'; frame-ancestors 'self'; img-src http://${DOMAIN}/favicon.ico https://translate.google.com; report-uri /csp-report" always;
     include /usr/share/odk/nginx/common-headers.conf;
   }
   location = /blank.html {
     try_files $uri @blank.html;
   }
 
+  # central-frontend
   location / {
     root /usr/share/nginx/html;
-    try_files $uri $uri/ /index.html;
+    try_files $uri $uri/ $spa_html;
 
-    add_header Content-Security-Policy-Report-Only "$central_frontend_csp" always;
+    add_header Content-Security-Policy "$spa_csp" always;
 
     include /usr/share/odk/nginx/common-headers.conf;
   }

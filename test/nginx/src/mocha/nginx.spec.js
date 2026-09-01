@@ -1,5 +1,4 @@
 const tls = require('node:tls');
-const { Readable } = require('stream');
 
 const {
   assert,
@@ -7,6 +6,7 @@ const {
   requestSentryMock,
   resetSentryMock,
 } = require('../lib');
+const request = require('./request');
 
 const none = `'none'`;
 const reportSample = `'report-sample'`;
@@ -41,38 +41,43 @@ const allowGoogleTranslate = ({ 'connect-src':connectSrc, 'img-src':imgSrc, ...o
 };
 
 const contentSecurityPolicies = {
-  'backend-unmodified': {
+  'backend-strict': {
     block: {
-      'default-src':     'NOTE:FROM-BACKEND:block',
-      'form-action':     'NOTE:FROM-BACKEND:block',
-      'frame-ancestors': 'NOTE:FROM-BACKEND:block',
-    },
-    reportOnly: {
-      'default-src':     'NOTE:FROM-BACKEND:reportOnly',
-      'form-action':     'NOTE:FROM-BACKEND:reportOnly',
-      'frame-ancestors': 'NOTE:FROM-BACKEND:reportOnly',
-    },
-  },
-  'blank-html': {
-    reportOnly: allowGoogleTranslate({
       'default-src': [
         reportSample,
         none,
       ],
       'form-action': none,
+      'frame-ancestors': none,
+      'img-src': 'http://odk-nginx.example.test/favicon.ico', // http: scheme permits secure upgrade to https://
+      'report-uri':  '/csp-report',
+    },
+  },
+  'backend-unmodified': {
+    block:      'NOTE:FROM-BACKEND:block',
+    reportOnly: 'NOTE:FROM-BACKEND:reportOnly',
+  },
+  'blank-html': {
+    block: allowGoogleTranslate({
+      'default-src': [
+        reportSample,
+        none,
+      ],
+      'form-action': self, // allow decrypted zip downloads from central-frontend
       'frame-ancestors': self,
-      'img-src': self, // allow favicon.ico
+      'img-src': 'http://odk-nginx.example.test/favicon.ico', // http: scheme permits secure upgrade to https://
       'report-uri':  '/csp-report',
     }),
   },
   'central-frontend': {
-    reportOnly: allowGoogleTranslate({
+    block: allowGoogleTranslate({
       'default-src': [
         reportSample,
         none,
       ],
       'connect-src': [
         self,
+        'https://o-fake-dsn.ingest.sentry.io',
       ],
       'font-src':       self,
       'form-action': self,
@@ -104,29 +109,8 @@ const contentSecurityPolicies = {
       'report-uri':     '/csp-report',
     }),
   },
-  'disallow-all': {
-    block: {
-      'default-src':     'NOTE:FROM-BACKEND:block',
-      'form-action':     'NOTE:FROM-BACKEND:block',
-      'frame-ancestors': 'NOTE:FROM-BACKEND:block',
-    },
-    reportOnly: {
-      'default-src': [
-        reportSample,
-        none,
-      ],
-      'form-action': none,
-      'frame-ancestors': none,
-      'report-uri':  '/csp-report',
-    },
-  },
   enketo: {
-    block: {
-      'default-src':     'NOTE:FROM-BACKEND:block',
-      'form-action':     'NOTE:FROM-BACKEND:block',
-      'frame-ancestors': 'NOTE:FROM-BACKEND:block',
-    },
-    reportOnly: allowGoogleTranslate({
+    block: allowGoogleTranslate({
       'default-src': [
         reportSample,
         none,
@@ -181,8 +165,8 @@ const contentSecurityPolicies = {
       'report-uri': '/csp-report',
     }),
   },
-  'web-forms': {
-    reportOnly: allowGoogleTranslate({
+  'form-wrapper': { // web-forms, and the enketo iframe owner
+    block: allowGoogleTranslate({
       'default-src': [
         reportSample,
         none,
@@ -198,7 +182,7 @@ const contentSecurityPolicies = {
       'form-action': self,
       'frame-ancestors': self,
       'frame-src': [
-        self, // web-forms pages also host /enketo-passthrough/ URLs via iframes
+        self, // web-forms wrapper pages also host /enketo-passthrough/ URLs via iframes
         centralNotifications,
       ],
       'img-src': [
@@ -223,6 +207,7 @@ const contentSecurityPolicies = {
       'worker-src': [
         reportSample,
         'blob:',
+        'data:',
       ],
       'report-uri': '/csp-report',
     }),
@@ -259,41 +244,40 @@ describe('Content-Security-Policy definitions', () => {
         const policy = policies[headerType];
         if(!policy) continue;
 
-        it(`should have required directives: ${requiredDirectives}`, () => {
-          assert.containsAllKeys(policy, requiredDirectives);
-        });
-
         describe(`header: ${headerNames[headerType]}`, () => {
-          it(`should have required directives: ${requiredDirectives}`, () => {
-            assert.containsAllKeys(policy, requiredDirectives);
-          });
+          if(typeof policy === 'string') {
+            if(!policy.startsWith('NOTE:FROM-BACKEND:')) throw new Error(`Unexpected policy string: '${policy}'`);
+          } else {
+            it(`should have required directives: ${requiredDirectives}`, () => {
+              assert.containsAllKeys(policy, requiredDirectives);
+            });
 
-          Object.entries(policy)
-              .map    (([ key, directive ]) => [ key, asArray(directive) ])
-              .filter (([ key, directive ]) => !(directive.length === 1 && directive[0] === `NOTE:FROM-BACKEND:${headerType}`)) // eslint-disable-line no-unused-vars
-              .forEach(([ key, directive ]) => {
-                describe(`directive: ${key}`, () => {
-                  if(supportsReportSample.includes(key)) {
-                    if(key.startsWith('style-src') && directive.includes(`'unsafe-inline'`)) {
-                      // For style-* directives, report-sample will only provide a sample of inline violations.
-                      it(`should not include 'report-sample' in directive '${key}' when 'unsafe-inline' is allowed`, () => {
+            Object.entries(policy)
+                .map    (([ key, directive ]) => [ key, asArray(directive) ])
+                .forEach(([ key, directive ]) => {
+                  describe(`directive: ${key}`, () => {
+                    if(supportsReportSample.includes(key)) {
+                      if(key.startsWith('style-src') && directive.includes(`'unsafe-inline'`)) {
+                        // For style-* directives, report-sample will only provide a sample of inline violations.
+                        it(`should not include 'report-sample' in directive '${key}' when 'unsafe-inline' is allowed`, () => {
+                          // expect
+                          assert.notInclude(directive, "'report-sample'");
+                        });
+                      } else {
+                        it(`should include 'report-sample' in directive '${key}'`, () => {
+                          // expect
+                          assert.include(directive, "'report-sample'");
+                        });
+                      }
+                    } else {
+                      it(`should not include 'report-sample' in directive '${key}'`, () => {
                         // expect
                         assert.notInclude(directive, "'report-sample'");
                       });
-                    } else {
-                      it(`should include 'report-sample' in directive '${key}'`, () => {
-                        // expect
-                        assert.include(directive, "'report-sample'");
-                      });
                     }
-                  } else {
-                    it(`should not include 'report-sample' in directive '${key}'`, () => {
-                      // expect
-                      assert.notInclude(directive, "'report-sample'");
-                    });
-                  }
+                  });
                 });
-              });
+          }
         });
       }
     });
@@ -459,7 +443,7 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
 
     // then
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { oidcEnabled: false });
+    assert.deepEqual(await res.json(), { oidcEnabled:false, sentryDsn:'https://abcdef0123456789abcdef0123456789@o-fake-dsn.ingest.sentry.io/1234567890123456' });
     assertSecurityHeaders(res, { csp:'central-frontend' });
   });
 
@@ -469,7 +453,7 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
 
     // then
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { oidcEnabled: false });
+    assert.deepEqual(await res.json(), { oidcEnabled:false, sentryDsn:'https://abcdef0123456789abcdef0123456789@o-fake-dsn.ingest.sentry.io/1234567890123456' });
     assertSecurityHeaders(res, { csp:'central-frontend' });
   });
 
@@ -484,7 +468,7 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
   });
 
   [
-    [ '/index.html',                 'text/html',                 /<div id="app"><\/div>/ ],
+    [ '/index.html',                 'text/html',                 /<div id="root-app"><\/div>/ ],
     [ '/version.txt',                'text/plain',                /^versions:/ ],
     [ '/android-chrome-192x192.png', 'image/png',                 /^\n$/ ],
     [ '/android-chrome-512x512.png', 'image/png',                 /^\n$/ ],
@@ -540,7 +524,7 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
 
       // then
       assert.equal(res.status, 200);
-      assert.equal(await res.text(), '<div id="app"></div>\n');
+      assert.equal(await res.text(), '<div id="root-app"></div>\n');
       assertSecurityHeaders(res, { csp:'central-frontend' });
 
       // and
@@ -589,7 +573,7 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
       expected: `f/${enketoId}?st=${sessionToken}&single=false` },
   ];
   enketoRedirectTestData.forEach(t => {
-    it('should redirect old enketo links to central-frontend; ' + t.description, async () => {
+    it('should redirect old enketo links to forms-wrapper; ' + t.description, async () => {
       // when
       const res = await apiFetch(t.request);
 
@@ -609,20 +593,114 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
     '/-/api',
     '/-/preview',
     '/-/edit/enketoid',
-  ].forEach(request => {
-    it(`should not redirect ${request} to central-frontend`, async () => {
+  ].forEach(path => {
+    it(`should not redirect ${path} to central-frontend`, async () => {
       // when
-      const res = await apiFetch(request);
+      const res = await apiFetch(path);
 
       // then
       assert.equal(res.status, 200);
       assert.equal(await res.text(), 'OK');
       assertSecurityHeaders(res, { csp:'enketo' });
 
-      // // and
+      // and
       await assertEnketoReceived(
-        { method:'GET', path: request },
+        { method:'GET', path },
       );
+    });
+  });
+
+  describe('enketo query param filtering', () => {
+    [
+      '/-/preview',
+      '/-/preview/',
+      '/enketo-passthrough/preview',
+      '/enketo-passthrough/preview/',
+    ].forEach(pathRoot => {
+      [
+        'form',
+        'form=',
+        'form=123',
+        'form&a=1',
+        'form=&a=1',
+        'form=123&a=1',
+        'a=1&form',
+        'a=1&form=',
+        'a=1&form=123',
+        'a=1&form&b=2',
+        'a=1&form=&b=2',
+        'a=1&form=123&b=2',
+        'a=1&form&form=123',
+        'a=1&form=123&form=123',
+
+        'xform',
+        'xform=',
+        'xform=123',
+        'xform&a=1',
+        'xform=&a=1',
+        'xform=123&a=1',
+        'a=1&xform',
+        'a=1&xform=',
+        'a=1&xform=123',
+        'a=1&xform&b=2',
+        'a=1&xform=&b=2',
+        'a=1&xform=123&b=2',
+        'a=1&xform&xform=123',
+        'a=1&xform=123&xform=123',
+
+        'form=1&xform=1&form=2&xform=2&form=3&xform=3&form=4&xform=4&form=5&xform=5&form=6&xform=6&',
+
+        '%66orm=123',
+
+        'XFORM=123',
+
+        'form;a=1',
+        'form=;a=1',
+        'form=123;a=1',
+        'a=1;form',
+        'a=1;form=',
+        'a=1;form=123',
+        'a=1;form;b=2',
+        'a=1;form=;b=2',
+        'a=1;form=123;b=2',
+        'a=1;form;form=123',
+        'a=1;form=123;form=123',
+      ].forEach(queryString => {
+        const path = pathRoot + '?' + queryString;
+
+        it(`should reject path ${path}`, async () => {
+          // when
+          const res = await apiFetch(path);
+
+          // then
+          assert.equal(res.status, 400);
+          // and
+          await assertEnketoReceivedNoRequests();
+        });
+      });
+
+      [
+        'platform=mac',
+        'form_id=99',
+        'uniform=true',
+        'a=1&deform=false&b=2',
+        'information=detailed',
+        'performance=good',
+      ].forEach(queryString => {
+        const path = pathRoot + '?' + queryString;
+
+        it(`should NOT reject path ${path}`, async () => {
+          // when
+          const res = await apiFetch(path);
+
+          // then
+          assert.equal(res.status, 200);
+          // and
+          await assertEnketoReceived(
+            { method:'GET', path:'/-/preview' + (pathRoot.endsWith('/') ? '/' : '') + '?' + queryString },
+          );
+        });
+      });
     });
   });
 
@@ -652,11 +730,28 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
     // then
     assert.equal(res.status, 200);
     assert.equal(await res.text(), 'OK');
-    assertSecurityHeaders(res, { csp:'disallow-all' });
+    assertSecurityHeaders(res, { csp:'backend-strict' });
     // and
     await assertBackendReceived(
       { method:'GET', path:'/v1/some/central-backend/path' },
     );
+  });
+
+  it('should detect backend stream breakages', async () => {
+    // when
+    const res = await apiFetch('/v1/broken-stream');
+    // then
+    assert.equal(res.status, 200);
+
+    try {
+      // when
+      await res.text();
+
+      assert.fail('response should have been aborted');
+    } catch(err) {
+      // then
+      if(err.code !== 'ECONNRESET') throw err;
+    }
   });
 
   it('/oidc/callback should serve Content-Security-Policy from backend', async () => {
@@ -674,7 +769,7 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
     const res = await apiFetch('/v1/reflect-headers');
     // then
     assert.equal(res.status, 200);
-    assertSecurityHeaders(res, { csp:'disallow-all' });
+    assertSecurityHeaders(res, { csp:'backend-strict' });
 
     // when
     const body = await res.json();
@@ -692,7 +787,7 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
     // then
     assert.equal(res.status, 200);
     // and
-    assertSecurityHeaders(res, { csp:'disallow-all' });
+    assertSecurityHeaders(res, { csp:'backend-strict' });
 
     // when
     const body = await res.json();
@@ -701,7 +796,6 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
   });
 
   describe('web-forms Content-Security-Policy special handling', () => {
-    // See https://github.com/getodk/central/pull/1467 for relevant paths
     [
       '/projects/1/forms/some_xml_form_id/submissions/new',
       '/projects/1/forms/some_xml_form_id/submissions/new/',
@@ -738,8 +832,8 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
 
         // then
         assert.equal(res.status, 200);
-        assert.equal(await res.text(), '<div id="app"></div>\n');
-        assertSecurityHeaders(res, { csp:'web-forms' });
+        assert.equal(await res.text(), '<div id="form-wrapper"></div>\n');
+        assertSecurityHeaders(res, { csp:'form-wrapper' });
       });
     });
 
@@ -775,6 +869,10 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
       // all /f/* should be valid
       '/f',
       '/f/',
+
+      // look like web-forms paths, but have unexpected prefixes
+      '/bypass/projects/123/forms/myform/preview',
+      '/static/assets/projects/5/forms/form1/submissions/new',
     ].forEach(path => {
       it(`should serve standard frontend Content Security Policy for fake webforms path: ${path}`, async () => {
         // when
@@ -782,7 +880,7 @@ function standardTestSuite({ fetchHttp, fetchHttp6, apiFetch, apiFetch6, forward
 
         // then
         assert.equal(res.status, 200);
-        assert.equal(await res.text(), '<div id="app"></div>\n');
+        assert.equal(await res.text(), '<div id="root-app"></div>\n');
         assertSecurityHeaders(res, { csp:'central-frontend' });
       });
     });
@@ -1065,7 +1163,7 @@ function assertBackendReceived(...expectedRequests) {
 }
 
 async function assertMockHttpReceived(port, expectedRequests) {
-  const res = await request(`http://localhost:${port}/request-log`);
+  const res = await request(`http://localhost:${port}/__mock_http_server/request-log`);
   assert.isTrue(res.ok);
   assert.deepEqual(expectedRequests, await res.json());
 }
@@ -1079,63 +1177,8 @@ function resetBackendMock() {
 }
 
 async function resetMock(port) {
-  const res = await request(`http://localhost:${port}/reset`);
+  const res = await request(`http://localhost:${port}/__mock_http_server/reset`);
   assert.isTrue(res.ok);
-}
-
-// Similar to fetch() but:
-//
-// 1. do not follow redirects
-// 2. allow overriding of fetch's "forbidden" headers: https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_header_name
-function request(url, { body, ...options }={}) {
-  if(!options.headers) options.headers = {};
-  if(!options.headers.host) options.headers.host = 'odk-nginx.example.test';
-
-  return new Promise((resolve, reject) => {
-    try {
-      const req = getProtocolImplFrom(url).request(url, options, res => {
-        res.on('error', reject);
-
-        const body = new Readable({ read:() => {} });
-        res.on('error', err => body.destroy(err));
-        res.on('data', data => body.push(data));
-        res.on('end', () => body.push(null));
-
-        const text = () => new Promise((resolve, reject) => {
-          const chunks = [];
-          body.on('error', reject);
-          body.on('data', data => chunks.push(data));
-          body.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
-        });
-
-        const status = res.statusCode;
-
-        resolve({
-          status,
-          ok: status >= 200 && status < 300,
-          statusText: res.statusText,
-          body,
-          text,
-          json: async () => JSON.parse(await text()),
-          headers: new Headers(res.headers),
-        });
-      });
-      req.on('error', reject);
-      if(body !== undefined) req.write(body);
-      req.end();
-    } catch(err) {
-      reject(err);
-    }
-  });
-}
-
-function getProtocolImplFrom(url) {
-  const { protocol } = new URL(url);
-  switch(protocol) {
-    case 'http:':  return require('node:http');
-    case 'https:': return require('node:https');
-    default: throw new Error(`Unsupported protocol: ${protocol}`);
-  }
 }
 
 function assertCacheStrategyApplied(res, expectedCacheStrategy) {
@@ -1184,9 +1227,13 @@ function assertSecurityHeaders(res, { csp }) {
 function assertCsp(actual, expected) {
   if(!expected) return assert.isNull(actual);
 
-  assert.deepEqualInAnyOrder(
-    actual?.split('; '),
-    Object.entries(expected)
-        .map(([ k, v ]) => `${k} ${asArray(v).join(' ')}`),
-  );
+  if(typeof expected === 'string') {
+    assert.equal(actual, expected);
+  } else {
+    assert.deepEqualInAnyOrder(
+      actual?.split('; '),
+      Object.entries(expected)
+          .map(([ k, v ]) => `${k} ${asArray(v).join(' ')}`),
+    );
+  }
 }

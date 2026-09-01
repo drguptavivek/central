@@ -1,25 +1,30 @@
-ARG NGINX_BASE_IMAGE=drguptavivek/central-nginx-vg-base:6.0.1
+FROM node:24.16.0-slim AS intermediate
 
-FROM node:24.14.1-slim AS intermediate
+ARG FRONTEND_BUILD_MODE
+ARG FRONTEND_VERSION
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
         git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./ ./
-RUN files/prebuild/write-version.sh
 
-ARG SKIP_FRONTEND_BUILD
-ARG VITE_APP_NAME
-ENV VITE_APP_NAME=${VITE_APP_NAME}
+RUN files/prebuild/write-version.sh
 RUN files/prebuild/build-frontend.sh
 
 
 
-# when upgrading, look for upstream changes to redirector.conf
-# also, confirm setup-odk.sh strips out HTTP-01 ACME challenge location
-FROM ${NGINX_BASE_IMAGE}
+# When upgrading:
+#
+# 1. Use full-length tag, including nginx version.  See:
+#    * https://github.com/JonasAlfredsson/docker-nginx-certbot/blob/master/docs/dockerhub_tags.md
+#    * https://hub.docker.com/r/jonasal/nginx-certbot/tags
+# 2. Look for upstream changes to redirector.conf
+# 3. Confirm setup-odk.sh strips out HTTP-01 ACME challenge location.
+FROM jonasal/nginx-certbot:6.2.0-nginx1.31.2
 
 EXPOSE 80
 EXPOSE 443
@@ -27,29 +32,18 @@ EXPOSE 443
 # Persist Diffie-Hellman parameters and/or selfsign key
 VOLUME [ "/etc/dh", "/etc/selfsign" ]
 
-RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd logrotate \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y netcat-openbsd
 
 RUN mkdir -p /usr/share/odk/nginx/
 
-RUN mkdir -p /etc/nginx/modules-enabled /var/log/nginx /var/log/modsecurity \
-    && if ! grep -q '/etc/nginx/modules-enabled' /etc/nginx/nginx.conf; then \
-         sed -i '1i include /etc/nginx/modules-enabled/*.conf;' /etc/nginx/nginx.conf; \
-       fi
-
 COPY files/nginx/setup-odk.sh \
-     files/nginx/start-with-logrotate.sh \
      files/shared/envsub.awk \
      /scripts/
-RUN chmod +x /scripts/setup-odk.sh /scripts/start-with-logrotate.sh
 
 COPY files/nginx/redirector.conf /usr/share/odk/nginx/
-COPY files/nginx/backend.conf /usr/share/odk/nginx/
 COPY files/nginx/common-headers.conf /usr/share/odk/nginx/
-COPY files/nginx/logrotate-nginx.conf /etc/logrotate.d/nginx-container
-RUN chmod 0644 /etc/logrotate.d/nginx-container
 COPY files/nginx/robots.txt /usr/share/nginx/html
-COPY --from=intermediate client/dist/ /usr/share/nginx/html
+COPY --from=intermediate dist/ /usr/share/nginx/html
 COPY --from=intermediate /tmp/version.txt /usr/share/nginx/html
 
-ENTRYPOINT [ "/scripts/start-with-logrotate.sh" ]
+ENTRYPOINT [ "/scripts/setup-odk.sh" ]
