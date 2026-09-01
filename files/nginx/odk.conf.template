@@ -2,6 +2,12 @@ server {
   listen 443 default_server ssl;
   server_tokens off;
 
+  # VG WAF: the VG base image provides these dynamic modules and ModSecurity
+  # runtime files. Keep this enabled in production; the dev template disables
+  # it separately because Vite requests are intentionally unrestricted.
+  modsecurity on;
+  modsecurity_rules_file /etc/modsecurity/modsecurity-odk.conf;
+
   ssl_certificate /etc/nginx/ssl/nginx.default.crt;
   ssl_certificate_key /etc/nginx/ssl/nginx.default.key;
 
@@ -206,6 +212,8 @@ server {
     include /usr/share/odk/nginx/common-headers.conf;
 
     proxy_set_header X-Forwarded-Proto $scheme;
+    # Do not trust a client-supplied X-Forwarded-For value for VG rate limits.
+    proxy_set_header X-Forwarded-For $remote_addr;
     proxy_pass http://service:8383;
     proxy_redirect off;
 

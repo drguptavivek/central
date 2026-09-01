@@ -24,7 +24,8 @@ RUN files/prebuild/build-frontend.sh
 #    * https://hub.docker.com/r/jonasal/nginx-certbot/tags
 # 2. Look for upstream changes to redirector.conf
 # 3. Confirm setup-odk.sh strips out HTTP-01 ACME challenge location.
-FROM jonasal/nginx-certbot:6.2.0-nginx1.31.2
+ARG NGINX_BASE_IMAGE=jonasal/nginx-certbot:6.2.0-nginx1.31.2
+FROM ${NGINX_BASE_IMAGE}
 
 EXPOSE 80
 EXPOSE 443
