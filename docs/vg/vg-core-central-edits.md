@@ -62,6 +62,23 @@ This document tracks all modifications made to the ODK Central meta-repo that de
 
 ## File-by-File Changes
 
+### 0. Compose environment parity guard
+
+**Status:** VG-EXCLUSIVE CHECK WITH ONE UPSTREAM WORKFLOW HOOK
+
+`test/check-compose-env.py` renders the upstream and VG Compose files
+separately, then verifies that the VG nginx `environment: !override` block
+contains every nginx environment key from upstream. Extra VG keys and
+intentional value differences are allowed. Run it with:
+
+```bash
+make check-compose-env
+```
+
+The `test-misc` job in `.github/workflows/main.yml` invokes this target. This
+single workflow step is a documented core edit because the workflow is tracked
+upstream. Docker Compose 2.24 or newer is required to parse `!override`.
+
 ### 1. docker-compose.yml
 
 **Status:** ✅ PURE UPSTREAM (No VG modifications)

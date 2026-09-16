@@ -1,5 +1,9 @@
 docker-compose-dev := docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.vg-dev.yml
 
+.PHONY: check-compose-env
+check-compose-env:
+	python3 test/check-compose-env.py
+
 .PHONY: dev
 dev:
 	$(docker-compose-dev) up --detach

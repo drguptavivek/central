@@ -19,6 +19,8 @@ jobs:
     - run: docker --version
     - run: docker compose version
     - uses: actions/checkout@v5
+    - run: python3 test/test_compose_env.py -q
+    - run: make check-compose-env
     - run: ./test/check-submodules.sh
     - run: ./test/test-with-pgenvblock.sh
     - run: sudo apt-get install shellcheck

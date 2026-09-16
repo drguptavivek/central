@@ -44,8 +44,13 @@ git merge v2025.5.0  # Minimal conflicts: .gitmodules, docs/vg, etc.
 git checkout --theirs docker-compose.yml  # Take upstream
 git checkout --theirs files/nginx/setup-odk.sh  # Take upstream (unused by VG image; see Nginx entrypoint)
 git checkout --ours .gitmodules docs/vg CLAUDE.md  # Keep VG
+make check-compose-env  # Copy any new upstream nginx env keys into the !override block
 git add -A && git commit && git push
 ```
+
+The environment check must pass before an upstream upgrade is committed. The
+VG `!override` block may add keys and change values, but it must repeat every
+nginx environment key declared by upstream so new settings are not dropped.
 
 **No rebase needed** - just merge and keep override files!
 
