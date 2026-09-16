@@ -115,9 +115,6 @@ server {
     include /usr/share/odk/nginx/common-headers.conf;
   }
 
-  location ~ ^/v\d+/oidc/callback$ {
-    include /usr/share/odk/nginx/common-headers.conf;
-  }
 
   location ~ ^/v\d {
     proxy_hide_header Content-Security-Policy-Report-Only;

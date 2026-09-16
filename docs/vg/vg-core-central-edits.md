@@ -11,6 +11,13 @@
 
 This document tracks all modifications made to the ODK Central meta-repo that deviate from upstream. Following the **minimal fork philosophy**, we keep changes to a minimum and document all deviations for easy rebasing and maintenance.
 
+> **Superceded sections below:** the logrotate / `start-with-logrotate.sh`
+> entrypoint and `central-nginx-vg-base` base-image sections describe the
+> architecture retired by the v2026.2.4 integration. The current nginx
+> architecture (WAF base image + Jonas entrypoint + `/docker-entrypoint.d`
+> hooks) is documented in `AGENTS.md` ("Nginx entrypoint") and
+> `docs/vg/vg_modsecurity.md`. Treat everything below as history.
+
 ### Philosophy
 
 1. **Keep docker-compose.yml pure upstream** - Makes future updates trivial

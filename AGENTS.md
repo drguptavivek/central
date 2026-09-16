@@ -7,13 +7,25 @@ This file captures local workflow conventions and key customizations for the
 
 ## Architecture: Minimal Fork with Override Pattern
 
-**Updated:** 2026-01-13 (v2025.4.1 integration)
+**Updated:** 2026-09-16 (v2026.2.4 integration)
 
 ### File Structure
-- **docker-compose.yml**: Pure upstream v2025.4.1 (NO VG modifications)
-- **docker-compose.override.yml**: Modsecurity/CRS security ONLY
+- **docker-compose.yml**: Pure upstream v2026.2.4 (NO VG modifications)
+- **docker-compose.override.yml**: The VG nginx/WAF layer (ModSecurity/CRS
+  policy, WAF base image, FRONTEND_BUILD_MODE, vhost healthcheck, template
+  mounts). Requires Docker Compose >= 2.24 (`!override` env tag).
 - **docker-compose.dev-overrides.yml**: Dev overrides (saved for reference)
 - **docker-compose.vg-dev.yml**: Profile management (separate) and HMR dev overrides
+
+### Nginx entrypoint (v2026.2.4+)
+The VG nginx image builds on the pinned WAF base
+(`ghcr.io/drguptavivek/nginx-waf`) and keeps the base's Jonas entrypoint:
+VG logic lives in numbered `files/nginx/`-sourced
+`/docker-entrypoint.d` hooks (16-odk-derived.envsh, 17-odk-modsecurity-mode.sh,
+18-odk-default-cert.sh, 25-odk-ssl-mode.sh, 35-wait-for-upstreams.sh,
+40-generate-client-config.sh) plus a `start-odk-nginx.sh` CMD wrapper.
+Upstream's `setup-odk.sh` entrypoint model is retired here but the file stays
+tracked (unused) so upstream merges conflict less; never wire it back in.
 
 ### Usage
 ```bash
@@ -30,7 +42,7 @@ Updating to future releases is now trivial:
 git fetch upstream --tags
 git merge v2025.5.0  # Minimal conflicts: .gitmodules, docs/vg, etc.
 git checkout --theirs docker-compose.yml  # Take upstream
-git checkout --theirs files/nginx/setup-odk.sh  # Take upstream
+git checkout --theirs files/nginx/setup-odk.sh  # Take upstream (unused by VG image; see Nginx entrypoint)
 git checkout --ours .gitmodules docs/vg CLAUDE.md  # Keep VG
 git add -A && git commit && git push
 ```

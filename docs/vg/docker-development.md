@@ -85,10 +85,10 @@ We use a "Dev-Prod Parity" architecture where Nginx proxies to a Dockerized clie
 
 ### Architecture
 - **Nginx**: Mounts `files/nginx/odk.conf.dev.template` which proxies `/` to `http://client:8989`.
-- **Client Container**: Runs `start-dev.sh`, installs npm dependencies at startup, creates `.nginx` temp paths, then starts nginx + Vite on internal port `8989`.
+- **Client Container**: Runs `start-dev.sh`, installs npm dependencies at startup, then starts Vite directly on internal port `8989` (no inner nginx since v2026.2.4; the outer Central nginx owns routing).
 - **HMR**: Upgraded via Nginx to WSS on port 443.
 - **Service Container**: Runs `files/service/scripts/start-odk-dev.sh`, which renders config, runs migrations, then starts the backend under `node --watch`.
-- **Nginx Container**: Uses `start-with-logrotate.sh` so nginx and modsecurity logs rotate inside the container during long-running dev sessions.
+- **Nginx Container**: Uses the WAF base image's entrypoint with VG `/docker-entrypoint.d` hooks (see AGENTS.md "Nginx entrypoint"); logs go to container stdout/stderr (Docker rotation), and in-container logrotate was removed in v2026.2.4.
 
 ### How to Run
 The `client` service starts automatically with the dev stack:
