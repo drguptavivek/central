@@ -1,6 +1,6 @@
 # VG Changelog: Upstream ODK Central v2026.2.4 Migration
 
-**Date:** 2026-09-01
+**Date:** 2026-09-17
 
 ## Branches
 
@@ -29,11 +29,27 @@
   accidentally reintroduced tracked `server/config/local.json` and
   `server/config/test.json` files were removed because they overrode upstream
   test URLs, cookie behavior, and mail settings.
+- Submission exports now require the explicit `submission.export` verb on
+  every CSV, ZIP, and OData surface. Built-in Administrators and Project
+  Managers retain export access; Project Viewers and Data Managers do not.
+- The Compose override environment is checked against upstream in CI with
+  `make check-compose-env`, preventing new upstream nginx keys from being
+  silently dropped by the `!override` block.
+
+## Upgrade and operations notes
+
+- Existing app-user sessions with a `NULL` expiry are hard-invalidated during
+  upgrade. Offline telemetry attempts made with those sessions receive 401 and
+  are not stored; app users must sign in again.
+- Weak-password validation now returns problem code `400.44` instead of
+  `400.20`. Clients that branch on the old code must be updated.
+- WAF anomaly-score blocking is live on `/v1/`. Monitor ModSecurity audit logs
+  after deployment, especially for false positives on `PATCH` requests.
+- Backend test runners must supply the required `PG*` environment variables.
+- Docker Compose 2.24 or newer is required because the VG nginx override uses
+  the `!override` tag.
 
 ## Submodule pointers
 
-- `client` -> `6cc736df`
-- `server` -> `55c926de`
-
-These are the pre-finalization submodule HEADs. Final pointers must be recorded
-only after the client and server changes are fully validated and committed.
+- `client` -> `f3328659`
+- `server` -> `e5314b68`
