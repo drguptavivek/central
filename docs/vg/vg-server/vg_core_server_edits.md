@@ -68,7 +68,7 @@ Reason: short-lived App User clients need project metadata but do not receive br
 
 Risk/merge note: fail closed unless the bearer actor is a field key belonging to the requested project.
 
-### Data Manager export boundary
+### Submission export boundary
 
 Files:
 
@@ -77,9 +77,11 @@ Files:
 
 Change: route OData and CSV/ZIP authorization through `vg-submission-export-auth.js`.
 
-Reason: preserve upstream Viewer downloads while denying Data Manager Connect Data and export/download unless the actor has the explicit export contract.
+Reason: export is a separate authorization capability. Administrator and Project Manager have `submission.export`; Project Viewer and Data Manager do not. `submission.read` continues to allow Viewer list, detail, and attachment access but never substitutes for export permission. Custom roles must also hold the explicit export verb.
 
-Risk/merge note: high authorization surface. Validate Manager/Admin, Viewer, and Data Manager separately for published and draft endpoints.
+Risk/merge note: high authorization surface and an intentional divergence from upstream Viewer download behavior. Validate Administrator/Manager success and Viewer/Data Manager denial separately across published and draft CSV, ZIP, OData service, metadata, collection, and row endpoints. The unchanged upstream Viewer test is handled by an exact expected-failure entry so any broader failure still fails the suite.
+
+Upgrade repair: the original `20260520-01-vg-data-manager-role` migration added `submission.export` to Viewer before its pre-release definition was corrected. Migration `20260917-01-vg-reconcile-submission-export-verbs` is append-only and makes upgraded databases match fresh installations by ensuring the verb is present for Administrator/Manager and absent for Viewer/Data Manager without changing unrelated verbs.
 
 ### Legacy submission-event upgrade repair
 
