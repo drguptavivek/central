@@ -98,8 +98,9 @@ Files:
 - `.github/workflows/tests.yml`
 - `apps/central/docs/CONTRIBUTING.md`
 - `e2e-tests/run-tests.sh`
+- `bin/check-bundle-size.js`
 
-Change: model `active` in App User fixtures, seed Data Manager and the narrow VG verb, install exact-signature expected-failure handling outside upstream test bodies, map HTTP fixtures to the VG list component, use a CI-safe Chrome launcher, provide the integration database environment in CI, and retain the fork's local E2E domain default.
+Change: model `active` in App User fixtures, seed Data Manager and the narrow VG verb, install exact-signature expected-failure handling outside upstream test bodies, map HTTP fixtures to the VG list component, use a CI-safe Chrome launcher, provide the integration database environment in CI, retain the fork's local E2E domain default, and track the upstream OpenLayers `Vector.js` feature chunk with a 350 kB ceiling.
 
 Reason: exercise the changed secure contract without rewriting upstream scenarios. Expected failures are exact-title and exact-message matched and fail on unexpected pass.
 

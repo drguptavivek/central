@@ -51,5 +51,5 @@
 
 ## Submodule pointers
 
-- `client` -> `c8e2b12b`
+- `client` -> `8efd1cac`
 - `server` -> `e5314b68`
