@@ -9,18 +9,40 @@
 
 services:
   nginx:
+    # Build Central's frontend/runtime layer on the published WAF base while
+    # preserving the inherited Jonas entrypoint and nginx.conf.
     build:
       args:
-        NGINX_BASE_IMAGE: ${NGINX_BASE_IMAGE:-drguptavivek/central-nginx-vg-base:6.0.1}
+        NGINX_BASE_IMAGE: ${NGINX_WAF_IMAGE:-ghcr.io/drguptavivek/nginx-waf:v1.0.0}
+        FRONTEND_BUILD_MODE: ${FRONTEND_BUILD_MODE:-source}
+    environment: !override
+      - DOMAIN=${DOMAIN}
+      - CERTBOT_EMAIL=${SYSADMIN_EMAIL}
+      - SSL_TYPE=${SSL_TYPE:-letsencrypt}
+      - SENTRY_ORG_SUBDOMAIN=${SENTRY_ORG_SUBDOMAIN:-o130137}
+      - SENTRY_KEY=${SENTRY_KEY:-3cf75f54983e473da6bd07daddf0d2ee}
+      - SENTRY_PROJECT=${SENTRY_PROJECT:-1298632}
+      - OIDC_ENABLED=${OIDC_ENABLED:-false}
+      - SENTRY_DSN_FRONTEND=${SENTRY_DSN_FRONTEND:-}
+      - MODSEC_ENGINE_MODE=${MODSEC_ENGINE_MODE:-On}
+      - CERT_DOMAIN=${DOMAIN:-central.local}
+      - USE_LOCAL_CA=${USE_LOCAL_CA:-0}
+    healthcheck:
+      # Prove that Jonas activated the generated TLS vhost, not only that its
+      # base NGINX master is listening on port 80.
+      test: ["CMD-SHELL", "if [ \"$${SSL_TYPE}\" = upstream ]; then curl -fsS -H \"Host: $${DOMAIN}\" http://127.0.0.1/client-config.json; else curl -kfsS --resolve \"$${DOMAIN}:443:127.0.0.1\" \"https://$${DOMAIN}/client-config.json\"; fi >/dev/null || exit 1"]
     volumes:
+      # nginx-waf's Jonas entrypoint renders templates from this directory.
+      - ./files/nginx/odk.conf.template:/etc/nginx/templates/odk.conf.template:ro
+      - ./files/nginx:/usr/share/odk/nginx:ro
+      - ./files/vg-nginx/vg-headers-more.conf:/etc/nginx/vg-headers-more.conf:ro
       # VG modsecurity nginx configs
       - ./files/vg-nginx/vg-nginx-modules.conf:/etc/nginx/modules-enabled/50-vg-nginx-modules.conf:ro
-      - ./files/vg-nginx/vg-modsecurity-odk.conf:/etc/modsecurity/modsecurity-odk.conf:ro
-      - ./files/vg-nginx/vg-headers-more.conf:/usr/share/odk/nginx/vg-headers-more.conf:ro
-      # Modsecurity CRS configs
-      - ./crs/crs-setup.conf.example:/etc/modsecurity/crs/crs-setup.conf:ro
-      - ./crs/rules:/etc/modsecurity/crs/rules:ro
+      # Render the validated engine mode into the runtime policy without
+      # mutating this read-only source template.
+      - ./files/vg-nginx/vg-modsecurity-odk.conf:/etc/modsecurity/main.conf.template:ro
+      # Keep the image-pinned CRS release. Consumer exclusions are mounted
+      # separately and do not replace the image's CRS setup or rule tree.
       - ./crs_custom:/etc/modsecurity/custom:ro
       # Security logging
       - ./logs/nginx:/var/log/nginx
-      - ./logs/modsecurity:/var/log/modsecurity

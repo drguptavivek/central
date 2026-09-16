@@ -1,0 +1,40 @@
+#!/bin/sh
+
+# Variables that upstream setup-odk.sh derived before rendering the template.
+# The Jonas image sources *.envsh before its standard envsubst hook.
+export ODK_SSL_TYPE="${SSL_TYPE:-letsencrypt}"
+
+case "${ODK_SSL_TYPE}" in
+  letsencrypt)
+    export ODK_CERT_PATH_TYPE=letsencrypt
+    export CERT_DOMAIN="${CERT_DOMAIN:-${DOMAIN}}"
+    export USE_LOCAL_CA="${USE_LOCAL_CA:-0}"
+    ;;
+  selfsign)
+    # Jonas's local CA writes Certbot-compatible files under /etc/letsencrypt.
+    export ODK_CERT_PATH_TYPE=letsencrypt
+    export CERT_DOMAIN="${CERT_DOMAIN:-${DOMAIN}}"
+    export USE_LOCAL_CA=1
+    ;;
+  customssl)
+    export ODK_CERT_PATH_TYPE=customssl
+    export CERT_DOMAIN="${CERT_DOMAIN:-local}"
+    export USE_LOCAL_CA=0
+    ;;
+  upstream)
+    # The post-render hook removes TLS directives for the TLS-terminating proxy
+    # mode, but define the substituted path so no template variable is empty.
+    export ODK_CERT_PATH_TYPE=upstream
+    export CERT_DOMAIN="${CERT_DOMAIN:-${DOMAIN}}"
+    export USE_LOCAL_CA=0
+    ;;
+  *)
+    echo "SSL_TYPE must be letsencrypt, selfsign, customssl, or upstream" >&2
+    return 1
+    ;;
+esac
+
+export SENTRY_DSN_FRONTEND_ROOT="$({
+  printf '%s' "${SENTRY_DSN_FRONTEND:-}" \
+    | awk 'sub(/:\/\/[a-z0-9]*@/, "://") && sub(/\/[0-9]+$/, "")'
+})"

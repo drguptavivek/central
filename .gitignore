@@ -2,20 +2,11 @@
 *.swp
 *.swo
 /.env
+/client/
+/docker-compose.override.yml
 /version.txt
 
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-
-
-/logs/
-/tmp/
-/files/postgres14/backups/*
-!/files/postgres14/backups/.gitkeep
-/files/postgres14/backups/backup.log
-
+/files/allow-postgres14-upgrade
 /files/postgres14/upgrade/*
 !/files/postgres14/upgrade/check-available-space
 
@@ -25,20 +16,9 @@ __pycache__/
 /files/mail/rsa.public
 
 /files/dkim/*
-.osgrep
-client/.nginx
+/.idea/
 
-/.beads/
-
-/backup/*
-/backup
-
-# Dolt / Beads runtime files (added by bd init)
+# Beads / Dolt files (added by bd init)
 .dolt/
 *.db
 .beads-credential-key
-
-/test/nginx/node_modules
-/test/nginx/.eslintcache
-
-/backups/

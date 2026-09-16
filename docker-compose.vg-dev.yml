@@ -32,7 +32,6 @@ services:
     volumes:
       - dev_secrets:/etc/secrets
       - ./server/lib:/usr/odk/lib
-      - ./server/config:/usr/odk/config
       - ./files/service/scripts/start-odk-dev.sh:/usr/odk/start-odk-dev.sh
     command: [ "./start-odk-dev.sh" ]
   client:
@@ -45,6 +44,7 @@ services:
       - "8989"
     environment:
       - VITE_APP_NAME=${VITE_APP_NAME:-}
+      - DOMAIN=${DOMAIN:-localhost}
     volumes:
       - ./client:/usr/src/app
       - /usr/src/app/node_modules
@@ -57,9 +57,9 @@ services:
   nginx:
     build:
       args:
-        - SKIP_FRONTEND_BUILD=1
+        - FRONTEND_BUILD_MODE=test
     volumes:
-      - ./files/nginx/odk.conf.dev.template:/usr/share/odk/nginx/odk.conf.template
+      - ./files/nginx/odk.conf.dev.template:/etc/nginx/templates/odk.conf.template:ro
     networks:
       default:
         aliases: []

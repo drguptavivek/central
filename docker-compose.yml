@@ -28,7 +28,7 @@ services:
       POSTGRES_PASSWORD: odk
       POSTGRES_DB: odk
   mail:
-    image: "registry.gitlab.com/egos-tech/smtp:1.2.2"
+    image: "registry.gitlab.com/egos-tech/smtp:1.2.8"
     volumes:
       - ./files/mail/rsa.private:/etc/exim4/dkim.key.temp:ro
     environment:
@@ -38,8 +38,6 @@ services:
   service:
     build:
       context: .
-      args:
-        DB_SSL: ${DB_SSL:-}  # So that we can error out at build time if this is defined with a value of "true" (no longer supported from 2026.1).
       dockerfile: service.dockerfile
     depends_on:
       - secrets
@@ -49,7 +47,6 @@ services:
       - enketo
     volumes:
       - secrets:/etc/secrets
-      - /data/transfer:/data/transfer
     env_file:
       - ".env"
     environment:
@@ -68,6 +65,7 @@ services:
       - PGPASSWORD=${PGPASSWORD-${DB_PASSWORD:-odk}}
       - PGAPPNAME=${PGAPPNAME-odkcentral}
       # End of libpq connection env var preparation.
+      - DB_SSL=${DB_SSL:-null}
       - DB_POOL_SIZE=${DB_POOL_SIZE:-10}
       - EMAIL_FROM=${EMAIL_FROM:-no-reply@$DOMAIN}
       - EMAIL_HOST=${EMAIL_HOST:-mail}
@@ -97,6 +95,9 @@ services:
     build:
       context: .
       dockerfile: nginx.dockerfile
+      args:
+        FRONTEND_BUILD_MODE: ${FRONTEND_BUILD_MODE:-fetch}
+        FRONTEND_VERSION: v2026.2.4
     depends_on:
       - service
       - enketo
@@ -108,6 +109,7 @@ services:
       - SENTRY_KEY=${SENTRY_KEY:-3cf75f54983e473da6bd07daddf0d2ee}
       - SENTRY_PROJECT=${SENTRY_PROJECT:-1298632}
       - OIDC_ENABLED=${OIDC_ENABLED:-false}
+      - SENTRY_DSN_FRONTEND=${SENTRY_DSN_FRONTEND:-}
     volumes:
       - ./files/local/customssl/:/etc/customssl/live/local/:ro
       - ./files/nginx/odk.conf.template:/usr/share/odk/nginx/odk.conf.template:ro
@@ -123,7 +125,7 @@ services:
       options:
         max-file: "30"
   pyxform:
-    image: 'ghcr.io/getodk/pyxform-http:v4.4.1'
+    image: 'ghcr.io/getodk/pyxform-http:v4.5.0'
     restart: always
   secrets:
     volumes:
@@ -148,7 +150,7 @@ services:
       - SUPPORT_EMAIL=${SYSADMIN_EMAIL}
       - HTTPS_PORT=${HTTPS_PORT:-443}
   enketo_redis_main:
-    image: redis:8.6.2
+    image: redis:8.6.4
     volumes:
       - ./files/enketo/redis-enketo-main.conf:/usr/local/etc/redis/redis.conf:ro
       - enketo_redis_main:/data
@@ -157,7 +159,7 @@ services:
       - /usr/local/etc/redis/redis.conf
     restart: always
   enketo_redis_cache:
-    image: redis:8.6.2
+    image: redis:8.6.4
     volumes:
       - ./files/enketo/redis-enketo-cache.conf:/usr/local/etc/redis/redis.conf:ro
       - enketo_redis_cache:/data
@@ -167,7 +169,6 @@ services:
     restart: always
 volumes:
   secrets:
-  transfer:
   postgres14:
   enketo_redis_main:
   enketo_redis_cache:

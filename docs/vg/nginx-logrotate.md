@@ -1,5 +1,11 @@
 # Nginx In-Container Logrotate (VG)
 
+> **RETIRED (v2026.2.4, 2026-09-16):** `start-with-logrotate.sh` and
+> `logrotate-nginx.conf` were deleted. The VG nginx image now inherits the
+> WAF base entrypoint (see AGENTS.md "Nginx entrypoint"); nginx logs go to
+> container stdout/stderr and ModSecurity audit events to `/dev/stderr`, so
+> Docker log rotation covers them. This document is kept as history.
+
 ## Why this exists
 
 Nginx access/error logs are written to `/var/log/nginx` (bind-mounted to `./logs/nginx`).

@@ -18,7 +18,7 @@ Production install of the VG fork on a Linux server with Docker.
 
 ## Prerequisites
 
-- Docker + Docker Compose v2
+- Docker + Docker Compose 2.24 or newer (`!override` is required by the VG nginx environment)
 - A domain name pointing to the server (or `central.local` for local testing)
 - Ports 80 and 443 open (for Let's Encrypt) or 443 only (for `customssl`/`upstream`)
 

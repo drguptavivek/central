@@ -1,55 +1,56 @@
-ARG NGINX_BASE_IMAGE=drguptavivek/central-nginx-vg-base:6.0.1
+ARG NGINX_BASE_IMAGE=ghcr.io/drguptavivek/nginx-waf:v1.0.0
 
-FROM node:24.14.1-slim AS intermediate
+FROM node:24.16.0-slim AS intermediate
+
+ARG FRONTEND_BUILD_MODE
+ARG FRONTEND_VERSION
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
         git \
     && rm -rf /var/lib/apt/lists/*
 
 COPY ./ ./
-RUN files/prebuild/write-version.sh
 
-ARG SKIP_FRONTEND_BUILD
-ARG VITE_APP_NAME
-ENV VITE_APP_NAME=${VITE_APP_NAME}
+RUN files/prebuild/write-version.sh
 RUN files/prebuild/build-frontend.sh
 
 
 
-# when upgrading, look for upstream changes to redirector.conf
-# also, confirm setup-odk.sh strips out HTTP-01 ACME challenge location
+# The WAF base inherits Jonas's NGINX/Certbot entrypoint. Keep that contract:
+# this layer adds Central assets and entrypoint hooks but does not replace the
+# main entrypoint or nginx.conf.
 FROM ${NGINX_BASE_IMAGE}
 
 EXPOSE 80
 EXPOSE 443
 
-# Persist Diffie-Hellman parameters and/or selfsign key
-VOLUME [ "/etc/dh", "/etc/selfsign" ]
+RUN mkdir -p /usr/share/odk/nginx/ /usr/share/nginx/html/
 
-RUN apt-get update && apt-get install -y --no-install-recommends netcat-openbsd logrotate \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN mkdir -p /usr/share/odk/nginx/
-
-RUN mkdir -p /etc/nginx/modules-enabled /var/log/nginx /var/log/modsecurity \
-    && if ! grep -q '/etc/nginx/modules-enabled' /etc/nginx/nginx.conf; then \
-         sed -i '1i include /etc/nginx/modules-enabled/*.conf;' /etc/nginx/nginx.conf; \
-       fi
-
-COPY files/nginx/setup-odk.sh \
-     files/nginx/start-with-logrotate.sh \
-     files/shared/envsub.awk \
-     /scripts/
-RUN chmod +x /scripts/setup-odk.sh /scripts/start-with-logrotate.sh
-
-COPY files/nginx/redirector.conf /usr/share/odk/nginx/
-COPY files/nginx/backend.conf /usr/share/odk/nginx/
-COPY files/nginx/common-headers.conf /usr/share/odk/nginx/
-COPY files/nginx/logrotate-nginx.conf /etc/logrotate.d/nginx-container
-RUN chmod 0644 /etc/logrotate.d/nginx-container
+COPY files/nginx/redirector.conf \
+     files/nginx/common-headers.conf \
+     /usr/share/odk/nginx/
+# Jonas renders *.template files through its inherited entrypoint. Replace the
+# base image's catch-all redirector with Central's domain-aware 301/421 split.
+COPY files/nginx/redirector.conf /etc/nginx/templates/redirector.conf.template
+COPY files/nginx/start-odk-nginx.sh /usr/local/bin/
+COPY files/nginx/40-generate-client-config.sh /docker-entrypoint.d/
+COPY files/nginx/35-wait-for-upstreams.sh /docker-entrypoint.d/
+COPY files/nginx/25-odk-ssl-mode.sh /docker-entrypoint.d/
+COPY files/nginx/18-odk-default-cert.sh /docker-entrypoint.d/
+COPY files/nginx/17-odk-modsecurity-mode.sh /docker-entrypoint.d/
+COPY files/nginx/16-odk-derived.envsh /docker-entrypoint.d/
+RUN chmod 0755 /docker-entrypoint.d/16-odk-derived.envsh \
+    /docker-entrypoint.d/17-odk-modsecurity-mode.sh \
+    /docker-entrypoint.d/18-odk-default-cert.sh \
+    /docker-entrypoint.d/25-odk-ssl-mode.sh \
+    /docker-entrypoint.d/35-wait-for-upstreams.sh \
+    /docker-entrypoint.d/40-generate-client-config.sh \
+    /usr/local/bin/start-odk-nginx.sh
 COPY files/nginx/robots.txt /usr/share/nginx/html
-COPY --from=intermediate client/dist/ /usr/share/nginx/html
+COPY --from=intermediate dist/ /usr/share/nginx/html
 COPY --from=intermediate /tmp/version.txt /usr/share/nginx/html
 
-ENTRYPOINT [ "/scripts/start-with-logrotate.sh" ]
+CMD [ "start-odk-nginx.sh" ]

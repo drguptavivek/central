@@ -28,9 +28,16 @@
 - App users only; web users cannot submit telemetry on their behalf.
 - `appUserId` (optional, integer) must match the authenticated app user if provided.
 - If the bearer token belongs to a different project than `:projectId`, the endpoint returns 404 (project scoped not found).
-- Auth path: `VgAppUserAuth.getSessionByToken()` accepts any VG session row where `expires_at IS NULL OR expires_at > now() - interval '2 days'` (2-day grace window on VG session expiry).
-- If no VG session row matches that rule, the request returns 401 authentication failed (no telemetry recorded).
-- If a VG session exists but the core session lookup `Sessions.getByBearerToken()` fails (revoked/expired in core), telemetry is recorded and the response `status` is `"invalidated"`.
+- Auth path: `VgAppUserAuth.getSessionByToken()` requires an undeleted App
+  User, active VG credentials, and a non-null `expires_at` strictly later than
+  the current statement timestamp.
+- Expired, revoked, null-expiry, inactive, deleted, unknown, or malformed
+  bearer tokens return 401 and record no telemetry. There is no offline grace
+  window because telemetry must follow the same short-session, fail-closed
+  contract as every other App User bearer endpoint.
+- A successful response is normally `"ok"`. `"invalidated"` is retained only
+  as a defensive report if the core session is invalidated concurrently after
+  the strict VG check; it is not a route for knowingly expired/revoked tokens.
 - Response (single event):
   - `status`: `"ok"` or `"invalidated"`.
   - `serverTime`: ISO datetime for when the server processed the request.

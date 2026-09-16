@@ -20,6 +20,28 @@ Short-lived, password-based auth for Collect-style app users tied to projects. T
 - All app-user requests must include `Authorization: Bearer <short-token>` (never cookies).
 - Common error codes: `400` validation, `401` auth failure/expired token, `403` lack of project role or closed form, `404` not found/out-of-project.
 
+## Submission export authorization
+
+Submission export requires the explicit `submission.export` verb. The
+`submission.read` verb permits listing submissions, reading individual
+submissions, and fetching submission attachments, but it does not permit CSV,
+ZIP, or OData export.
+
+| Project role | Read/list submissions | CSV, ZIP, and OData export |
+| --- | --- | --- |
+| Administrator (`admin`) | Allowed | Allowed |
+| Project Manager (`manager`) | Allowed | Allowed |
+| Project Viewer (`viewer`) | Allowed | Denied |
+| Data Manager (`data_mgr`) | Allowed, including review workflows | Denied |
+| Custom role | According to assigned verbs | Allowed only with `submission.export` |
+
+This policy covers published and draft CSV/ZIP endpoints and every OData
+surface, including the service document, metadata, collection, and individual
+row endpoints. Migration `20260917-01-vg-reconcile-submission-export-verbs`
+reconciles upgraded databases with fresh installations by granting the verb to
+Administrator and Project Manager and removing it from Project Viewer and Data
+Manager while preserving unrelated verbs.
+
 ## Password policy
 - Minimum 10 characters
 - Maximum 72 characters

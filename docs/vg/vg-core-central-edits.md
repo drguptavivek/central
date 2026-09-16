@@ -11,6 +11,13 @@
 
 This document tracks all modifications made to the ODK Central meta-repo that deviate from upstream. Following the **minimal fork philosophy**, we keep changes to a minimum and document all deviations for easy rebasing and maintenance.
 
+> **Superceded sections below:** the logrotate / `start-with-logrotate.sh`
+> entrypoint and `central-nginx-vg-base` base-image sections describe the
+> architecture retired by the v2026.2.4 integration. The current nginx
+> architecture (WAF base image + Jonas entrypoint + `/docker-entrypoint.d`
+> hooks) is documented in `AGENTS.md` ("Nginx entrypoint") and
+> `docs/vg/vg_modsecurity.md`. Treat everything below as history.
+
 ### Philosophy
 
 1. **Keep docker-compose.yml pure upstream** - Makes future updates trivial
@@ -54,6 +61,23 @@ This document tracks all modifications made to the ODK Central meta-repo that de
 ---
 
 ## File-by-File Changes
+
+### 0. Compose environment parity guard
+
+**Status:** VG-EXCLUSIVE CHECK WITH ONE UPSTREAM WORKFLOW HOOK
+
+`test/check-compose-env.py` renders the upstream and VG Compose files
+separately, then verifies that the VG nginx `environment: !override` block
+contains every nginx environment key from upstream. Extra VG keys and
+intentional value differences are allowed. Run it with:
+
+```bash
+make check-compose-env
+```
+
+The `test-misc` job in `.github/workflows/main.yml` invokes this target. This
+single workflow step is a documented core edit because the workflow is tracked
+upstream. Docker Compose 2.24 or newer is required to parse `!override`.
 
 ### 1. docker-compose.yml
 
