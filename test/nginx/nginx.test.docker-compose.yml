@@ -51,11 +51,11 @@ services:
       file: lib.docker-compose.yml
       service: nginx
     environment:
-      SSL_TYPE: selfsign
+      SSL_TYPE: customssl
     ports:
       - "10002:80"
       - "10003:443"
     volumes:
       - ./src/mocha/setup-odk/certs/nginx.pem:/etc/dh/nginx.pem:ro
-      - ./src/mocha/setup-odk/certs/privkey.pem:/etc/selfsign/live/odk-nginx.example.test/privkey.pem:ro
-      - ./src/mocha/setup-odk/certs/fullchain.pem:/etc/selfsign/live/odk-nginx.example.test/fullchain.pem:ro
+      - ./src/mocha/setup-odk/certs/privkey.pem:/etc/customssl/live/local/privkey.pem:ro
+      - ./src/mocha/setup-odk/certs/fullchain.pem:/etc/customssl/live/local/fullchain.pem:ro

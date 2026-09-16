@@ -1,3 +1,5 @@
+ARG NGINX_BASE_IMAGE=ghcr.io/drguptavivek/nginx-waf:v1.0.0
+
 FROM node:24.16.0-slim AS intermediate
 
 ARG FRONTEND_BUILD_MODE
@@ -17,34 +19,38 @@ RUN files/prebuild/build-frontend.sh
 
 
 
-# When upgrading:
-#
-# 1. Use full-length tag, including nginx version.  See:
-#    * https://github.com/JonasAlfredsson/docker-nginx-certbot/blob/master/docs/dockerhub_tags.md
-#    * https://hub.docker.com/r/jonasal/nginx-certbot/tags
-# 2. Look for upstream changes to redirector.conf
-# 3. Confirm setup-odk.sh strips out HTTP-01 ACME challenge location.
-ARG NGINX_BASE_IMAGE=jonasal/nginx-certbot:6.2.0-nginx1.31.2
+# The WAF base inherits Jonas's NGINX/Certbot entrypoint. Keep that contract:
+# this layer adds Central assets and entrypoint hooks but does not replace the
+# main entrypoint or nginx.conf.
 FROM ${NGINX_BASE_IMAGE}
 
 EXPOSE 80
 EXPOSE 443
 
-# Persist Diffie-Hellman parameters and/or selfsign key
-VOLUME [ "/etc/dh", "/etc/selfsign" ]
+RUN mkdir -p /usr/share/odk/nginx/ /usr/share/nginx/html/
 
-RUN apt-get update && apt-get install -y netcat-openbsd
-
-RUN mkdir -p /usr/share/odk/nginx/
-
-COPY files/nginx/setup-odk.sh \
-     files/shared/envsub.awk \
-     /scripts/
-
-COPY files/nginx/redirector.conf /usr/share/odk/nginx/
-COPY files/nginx/common-headers.conf /usr/share/odk/nginx/
+COPY files/nginx/redirector.conf \
+     files/nginx/common-headers.conf \
+     /usr/share/odk/nginx/
+# Jonas renders *.template files through its inherited entrypoint. Replace the
+# base image's catch-all redirector with Central's domain-aware 301/421 split.
+COPY files/nginx/redirector.conf /etc/nginx/templates/redirector.conf.template
+COPY files/nginx/start-odk-nginx.sh /usr/local/bin/
+COPY files/nginx/40-generate-client-config.sh /docker-entrypoint.d/
+COPY files/nginx/35-wait-for-upstreams.sh /docker-entrypoint.d/
+COPY files/nginx/25-odk-ssl-mode.sh /docker-entrypoint.d/
+COPY files/nginx/18-odk-default-cert.sh /docker-entrypoint.d/
+COPY files/nginx/17-odk-modsecurity-mode.sh /docker-entrypoint.d/
+COPY files/nginx/16-odk-derived.envsh /docker-entrypoint.d/
+RUN chmod 0755 /docker-entrypoint.d/16-odk-derived.envsh \
+    /docker-entrypoint.d/17-odk-modsecurity-mode.sh \
+    /docker-entrypoint.d/18-odk-default-cert.sh \
+    /docker-entrypoint.d/25-odk-ssl-mode.sh \
+    /docker-entrypoint.d/35-wait-for-upstreams.sh \
+    /docker-entrypoint.d/40-generate-client-config.sh \
+    /usr/local/bin/start-odk-nginx.sh
 COPY files/nginx/robots.txt /usr/share/nginx/html
 COPY --from=intermediate dist/ /usr/share/nginx/html
 COPY --from=intermediate /tmp/version.txt /usr/share/nginx/html
 
-ENTRYPOINT [ "/scripts/setup-odk.sh" ]
+CMD [ "start-odk-nginx.sh" ]

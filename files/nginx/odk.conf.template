@@ -2,12 +2,6 @@ server {
   listen 443 default_server ssl;
   server_tokens off;
 
-  # VG WAF: the VG base image provides these dynamic modules and ModSecurity
-  # runtime files. Keep this enabled in production; the dev template disables
-  # it separately because Vite requests are intentionally unrestricted.
-  modsecurity on;
-  modsecurity_rules_file /etc/modsecurity/modsecurity-odk.conf;
-
   ssl_certificate /etc/nginx/ssl/nginx.default.crt;
   ssl_certificate_key /etc/nginx/ssl/nginx.default.key;
 
@@ -125,9 +119,9 @@ server {
   http2 on;
   server_name ${DOMAIN};
 
-  ssl_certificate /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
-  ssl_certificate_key /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/privkey.pem;
-  ssl_trusted_certificate /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
+  ssl_certificate /etc/${ODK_CERT_PATH_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/${ODK_CERT_PATH_TYPE}/live/${CERT_DOMAIN}/privkey.pem;
+  ssl_trusted_certificate /etc/${ODK_CERT_PATH_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
 
   ssl_protocols TLSv1.2 TLSv1.3;
   ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;

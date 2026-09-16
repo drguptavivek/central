@@ -70,9 +70,9 @@ server {
   http2 on;
   server_name ${DOMAIN};
 
-  ssl_certificate /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
-  ssl_certificate_key /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/privkey.pem;
-  ssl_trusted_certificate /etc/${SSL_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
+  ssl_certificate /etc/${ODK_CERT_PATH_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/${ODK_CERT_PATH_TYPE}/live/${CERT_DOMAIN}/privkey.pem;
+  ssl_trusted_certificate /etc/${ODK_CERT_PATH_TYPE}/live/${CERT_DOMAIN}/fullchain.pem;
 
   ssl_protocols TLSv1.2 TLSv1.3;
   ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
@@ -82,11 +82,13 @@ server {
 
   server_tokens off;
 
-  # VG: Disable ModSecurity in dev to avoid blocking Vite module requests
-  modsecurity off;
+  location = /client-config.json {
+    root /usr/share/nginx/html;
+    try_files /client-config.json =404;
+  }
 
   # VG: Hardening via headers-more
-  include /usr/share/odk/nginx/vg-headers-more.conf;
+  include /etc/nginx/vg-headers-more.conf;
 
   include /usr/share/odk/nginx/common-headers.conf;
 
@@ -109,24 +111,26 @@ server {
     proxy_hide_header Vary;
     proxy_hide_header Cache-Control;
     proxy_hide_header Content-Security-Policy-Report-Only;
-    add_header Content-Security-Policy-Report-Only "default-src 'none'; connect-src 'self' blob: https://maps.googleapis.com/ https://maps.google.com/ https://maps.gstatic.com/mapfiles/ https://fonts.gstatic.com/ https://fonts.googleapis.com/ https://translate.google.com https://translate.googleapis.com; font-src 'self' https://fonts.gstatic.com/; frame-src 'none'; img-src data: blob: jr: 'self' https://maps.google.com/maps/ https://maps.gstatic.com/mapfiles/ https://maps.googleapis.com/maps/ https://tile.openstreetmap.org/ https://translate.google.com; manifest-src 'none'; media-src blob: jr: 'self'; object-src 'none'; script-src 'unsafe-inline' 'self' https://maps.googleapis.com/maps/api/js/ https://maps.google.com/maps/ https://maps.google.com/maps-api-v3/api/js/; style-src 'unsafe-inline' 'self' https://fonts.googleapis.com/css; style-src-attr 'unsafe-inline'; report-uri /csp-report";
+    add_header Content-Security-Policy-Report-Only "default-src 'none'; connect-src 'self' blob: https://maps.googleapis.com/ https://maps.google.com/ https://maps.gstatic.com/mapfiles/ https://fonts.gstatic.com/ https://fonts.googleapis.com/ https://translate.google.com https://translate.googleapis.com; font-src 'self' https://fonts.gstatic.com/; frame-src 'none'; img-src data: blob: jr: 'self' https://maps.google.com/maps/ https://maps.gstatic.com/mapfiles/ https://maps.googleapis.com/maps/ https://tile.openstreetmap.org/ https://translate.google.com; manifest-src 'none'; media-src blob: jr: 'self'; object-src 'none'; script-src 'unsafe-inline' 'self' https://maps.googleapis.com/maps/api/js/ https://maps.google.com/maps/ https://maps.google.com/maps-api-v3/api/js/; style-src 'unsafe-inline' 'self' https://fonts.googleapis.com/css; style-src-attr 'unsafe-inline'; report-uri /csp-report" always;
     include /usr/share/odk/nginx/common-headers.conf;
   }
 
   location ~ ^/v\d+/oidc/callback$ {
     include /usr/share/odk/nginx/common-headers.conf;
-    include /usr/share/odk/nginx/backend.conf;
   }
 
   location ~ ^/v\d {
-    # VG: Disable CRS blocking rules for Central API (PATCH/PUT/DELETE methods)
-    modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
-
     proxy_hide_header Content-Security-Policy-Report-Only;
-    add_header Content-Security-Policy-Report-Only "default-src 'none'; report-uri /csp-report";
+    add_header Content-Security-Policy-Report-Only "default-src 'none'; report-uri /csp-report" always;
 
     include /usr/share/odk/nginx/common-headers.conf;
-    include /usr/share/odk/nginx/backend.conf;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_pass http://service:8383;
+    proxy_redirect off;
+    proxy_buffering off;
+    proxy_read_timeout 2m;
   }
 
   # --- DEV PROXY TO VITE CLIENT ---

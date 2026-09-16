@@ -14,28 +14,32 @@ services:
       - o-fake-dsn.ingest.sentry.io:host-gateway
     environment:
       - DOMAIN=odk-nginx.example.test
+      - CERTBOT_EMAIL=admin@example.com
+      # The upstream NGINX suite deliberately sends unusual methods and payloads
+      # to verify routing and cache headers. Keep CRS inspection enabled without
+      # letting WAF policy replace the status codes under test. Blocking is
+      # exercised separately by the VG WAF smoke gate with SecRuleEngine On.
+      - MODSEC_ENGINE_MODE=DetectionOnly
       - SENTRY_KEY=example-sentry-key
       - SENTRY_ORG_SUBDOMAIN=o-fake-dsn
       - SENTRY_PROJECT=example-sentry-project
       - OIDC_ENABLED=false
       - SENTRY_DSN_FRONTEND=${SENTRY_DSN_FRONTEND-https://abcdef0123456789abcdef0123456789@o-fake-dsn.ingest.sentry.io/1234567890123456}
     volumes:
-      - ../../files/nginx/odk.conf.template:/usr/share/odk/nginx/odk.conf.template:ro
-      - ../../files/nginx/client-config.json.template:/usr/share/odk/nginx/client-config.json.template:ro
+      - ../../files/nginx/odk.conf.template:/etc/nginx/templates/odk.conf.template:ro
+      - ../../files/nginx:/usr/share/odk/nginx:ro
       - ./files/nginx/dh.pem:/etc/dh/nginx.pem:ro
       # VG modsecurity nginx configs
       - ../../files/vg-nginx/vg-nginx-modules.conf:/etc/nginx/modules-enabled/50-vg-nginx-modules.conf:ro
-      - ../../files/vg-nginx/vg-modsecurity-odk.conf:/etc/modsecurity/modsecurity-odk.conf:ro
-      - ../../files/vg-nginx/vg-headers-more.conf:/usr/share/odk/nginx/vg-headers-more.conf:ro
-      # Modsecurity CRS configs
-      - ../../crs/crs-setup.conf.example:/etc/modsecurity/crs/crs-setup.conf:ro
-      - ../../crs/rules:/etc/modsecurity/crs/rules:ro
+      - ../../files/vg-nginx/vg-modsecurity-odk.conf:/etc/modsecurity/main.conf.template:ro
+      - ../../files/vg-nginx/vg-headers-more.conf:/etc/nginx/vg-headers-more.conf:ro
+      # Keep the WAF image's pinned CRS and mount only consumer exclusions.
       - ../../crs_custom:/etc/modsecurity/custom:ro
     healthcheck:
-      test: [ "CMD-SHELL", "nc -z localhost 80 || exit 1" ]
+      test: [ "CMD-SHELL", "if [ \"$${SSL_TYPE}\" = upstream ]; then curl -fsS -H \"Host: $${DOMAIN}\" http://127.0.0.1/client-config.json; else curl -kfsS --resolve \"$${DOMAIN}:443:127.0.0.1\" \"https://$${DOMAIN}/client-config.json\"; fi >/dev/null || exit 1" ]
       interval: 1s
       timeout: 1s
-      retries: 10
+      retries: 60
       start_period: 0s
     restart: always
     logging:

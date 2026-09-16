@@ -26,7 +26,9 @@ git_version() {
   if [[ "$FRONTEND_BUILD_MODE" = fetch ]] || [[ "$FRONTEND_BUILD_MODE" = test ]]; then
     print_version 0000000000000000000000000000000000000000 client "$FRONTEND_VERSION"
   elif [[ "$FRONTEND_BUILD_MODE" = source ]]; then
-    if ! [[ -d ./client/.git ]]; then
+    # A normal Central checkout records client as a submodule, so
+    # client/.git is a gitdir pointer file rather than a directory.
+    if ! git -C ./client rev-parse --git-dir >/dev/null 2>&1; then
       log "!!!"
       log "!!! No frontend git repository found at ./client/.git"
       log "!!!"
