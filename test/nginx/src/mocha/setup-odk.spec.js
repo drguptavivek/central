@@ -70,9 +70,24 @@ function dockerCompose(opts, ...args) {
 
 function withNginx(env, fn) {
   return async function() {
-    this.timeout(10_000);
+    this.timeout(70_000);
 
-    dockerCompose({ env }, `up --build --force-recreate --detach --wait ${service}`);
+    dockerCompose({ env }, `up --no-deps --build --force-recreate --detach ${service}`);
+
+    const deadline = Date.now() + 60_000;
+    let lastError;
+    while (true) {
+      try {
+        const response = await request('https://localhost:10003');
+        if (response.status === 200) break;
+        lastError = new Error(`Unexpected readiness status ${response.status}.`);
+      } catch (error) {
+        lastError = error;
+      }
+      if (Date.now() >= deadline)
+        throw new Error(`${service} did not become ready within 60 seconds.`, { cause:lastError });
+      await new Promise(resolve => { setTimeout(resolve, 250); });
+    }
 
     await fn();
   };
