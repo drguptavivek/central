@@ -58,7 +58,9 @@ EOF
   log "$service: config looks OK."
 }
 
-docker_compose up --detach --wait
+# Start only the services whose configuration is linted (plus their declared
+# dependencies). Other test fixtures may use intentionally different templates.
+docker_compose up --detach --wait nginx-ssl-selfsign nginx-ssl-upstream
 lint_service nginx-ssl-selfsign
 lint_service nginx-ssl-upstream
 
