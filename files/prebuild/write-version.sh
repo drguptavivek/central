@@ -23,7 +23,9 @@ git_version() {
   echo "versions:"
   echo "$(git rev-parse HEAD) ($(git describe --tags --always))"
 
-  if [[ "$FRONTEND_BUILD_MODE" = fetch ]] || [[ "$FRONTEND_BUILD_MODE" = test ]]; then
+  if [[ "$FRONTEND_BUILD_MODE" = test ]] && [[ "${VERSION_FRONTEND_FROM_SOURCE:-false}" = true ]]; then
+    git_version client
+  elif [[ "$FRONTEND_BUILD_MODE" = fetch ]] || [[ "$FRONTEND_BUILD_MODE" = test ]]; then
     print_version 0000000000000000000000000000000000000000 client "$FRONTEND_VERSION"
   elif [[ "$FRONTEND_BUILD_MODE" = source ]]; then
     # A normal Central checkout records client as a submodule, so

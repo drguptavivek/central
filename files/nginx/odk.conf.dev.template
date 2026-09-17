@@ -87,6 +87,14 @@ server {
     try_files /client-config.json =404;
   }
 
+  # The development image generates this file at build time. Serve it here so
+  # Vite does not proxy it to its standalone-development nginx port (8686),
+  # which is not present in the Docker development topology.
+  location = /version.txt {
+    root /usr/share/nginx/html;
+    try_files /version.txt =404;
+  }
+
   # VG: Hardening via headers-more
   include /etc/nginx/vg-headers-more.conf;
 

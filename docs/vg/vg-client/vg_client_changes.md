@@ -177,7 +177,8 @@ New child route added under `/system`:
 
 - Default backend target now `https://central.local`.
 - SSL verification disabled for local dev.
-- `/version.txt` now returns `development\n` (used by client).
+- The VG development nginx serves `/version.txt` with the checked-out Central,
+  client, and server commit metadata instead of sending the request to Vite.
   - `main.nginx.conf`
 
 ### Vite dev server updates
@@ -231,7 +232,8 @@ New child route added under `/system`:
 - `main.nginx.conf`
   - API proxy now targets `https://central.local` instead of `http://localhost:8383`.
   - Added `proxy_ssl_verify off` and `proxy_set_header Host central.local`.
-  - `/version.txt` now returns `development\n` with `text/plain`.
+- `/version.txt` is served by the VG development nginx image with the
+  checked-out Central, client, and server commit metadata.
 - `src/components/system/home.vue`
   - Added a **Settings** tab under System.
   - Added an **Enketo Status** tab under System.

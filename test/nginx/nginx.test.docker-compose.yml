@@ -68,6 +68,9 @@ services:
     extends:
       file: lib.docker-compose.yml
       service: nginx
+    build:
+      args:
+        VERSION_FRONTEND_FROM_SOURCE: "true"
     depends_on:
       - client
       - service

@@ -58,6 +58,9 @@ services:
     build:
       args:
         - FRONTEND_BUILD_MODE=test
+        # Vite serves the client in development, but version.txt should still
+        # identify the checked-out frontend upgrade branch.
+        - VERSION_FRONTEND_FROM_SOURCE=true
     volumes:
       - ./files/nginx/odk.conf.dev.template:/etc/nginx/templates/odk.conf.template:ro
     networks:

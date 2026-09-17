@@ -122,8 +122,12 @@ The `client` service starts automatically with the dev stack:
 
 ## Troubleshooting
 
-### `/version.txt` returns 404 in dev
-In the dev stack, nginx proxies `location /` to the Vite client (`client:8989`), so `/version.txt` is served by Vite rather than nginx static files. If your external proxy points at the dev stack, `/version.txt` may 404. Use the prod stack for `/version.txt`, or add a dev nginx override to serve it directly.
+### `/version.txt` in development
+The VG development nginx serves `/version.txt` directly from the image instead
+of proxying it to Vite. The file records the checked-out Central, client, and
+server commits and tag descriptions, including upgrade branches. Rebuild and
+recreate the nginx service after switching any of those branches so the file is
+regenerated.
 
 ### Service reports missing migration files
 If `service` reports that the migration directory is corrupt or references missing

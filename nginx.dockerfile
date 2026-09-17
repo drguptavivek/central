@@ -4,6 +4,7 @@ FROM node:24.16.0-slim AS intermediate
 
 ARG FRONTEND_BUILD_MODE
 ARG FRONTEND_VERSION
+ARG VERSION_FRONTEND_FROM_SOURCE=false
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
