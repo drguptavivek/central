@@ -46,6 +46,7 @@ jobs:
         node-version-file: test/package.json
     - run: cd test/nginx && npm clean-install
     - run: cd test/nginx && ./setup-tests.sh
+    - run: cd test/nginx && ./test-vg-dev-waf.sh
     - run: cd test/nginx && npm run test:nginx:mocha
     - run: cd test/nginx && ./lint-config.sh
 
