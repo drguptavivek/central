@@ -1,6 +1,6 @@
 # VG Modsecurity Implementation
 
-**Updated:** 2026-09-03
+**Updated:** 2026-09-17
 **Status:** Production Ready
 **Test Results:** Production image build, TLS routes, and synthetic blocking verified
 
@@ -43,8 +43,8 @@
   HTTP internally with `X-Forwarded-Proto: https`.
 - Both production and development vhosts inherit the HTTP-scope
   `modsecurity on`; neither template disables ModSecurity or removes aggregate
-  anomaly rules. The narrow authenticated API exclusion removes only CRS
-  method rule `911100`.
+  anomaly rules. The `/v1/` method exception removes only CRS rule `911100` for
+  PUT, PATCH, and DELETE, without inspecting the credential shape.
 - The health check requests `/client-config.json` over the generated HTTPS
   vhost, or over the generated HTTP vhost only in `upstream` mode, so the
   container cannot be reported healthy with only Jonas's base redirector
@@ -70,6 +70,30 @@ reported zero findings for both self-signed and upstream-SSL rendered
 configurations. The live VG stack was then restored with `SecRuleEngine On` and
 served the frontend, project deep links, App User Settings, Telemetry, API, and
 Enketo routes while continuing to block the XSS probe.
+
+## Effective OData and API CRS policy
+
+The following policy is the authority for the current `crs_custom/` rules.
+OData exceptions apply only to GET requests whose normalized path matches one
+of these Central route families (with an optional `/key/:token` prefix):
+
+```text
+/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId.svc[/...]
+/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId/draft.svc[/...]
+/v1/(key/:token/)?projects/:projectId/datasets/:datasetName.svc[/...]
+```
+
+On those routes, CRS rule `942290` is removed. If the request contains the
+`$filter` argument, rules `942100` and `942151` are removed for that request.
+Rule `920100` remains active. All other CRS rules, including anomaly scoring,
+XSS, traversal, and the remaining SQL injection rules, continue to inspect the
+request. The backend remains responsible for authentication and authorization;
+cookie, Bearer, Basic, field-key, and `st` authentication requests all reach
+the same backend checks.
+
+For PUT, PATCH, and DELETE requests under `/v1/`, only rule `911100` is
+removed. This exception is independent of authentication transport and does
+not remove `949110` or `949111`.
 
 The sections below describe the earlier implementation history. They are not
 deployment instructions: do not copy their old image tags, mounted CRS tree,
@@ -169,8 +193,8 @@ include /usr/share/odk/nginx/vg-headers-more.conf;
 
 ```nginx
 location ~ ^/v\d {
-    # VG: Disable CRS blocking rules for Central API (PATCH/PUT/DELETE methods)
-    modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
+    # VG: Central supports these REST methods; retain all other CRS rules.
+    modsecurity_rules 'SecRuleRemoveById 911100';
 
     proxy_hide_header Content-Security-Policy-Report-Only;
     add_header Content-Security-Policy-Report-Only "default-src 'none'; report-uri /csp-report";
@@ -209,31 +233,39 @@ SecRule REQUEST_URI "@streq /client-config.json" \
 #### `20-odk-odata-exclusions.conf`
 
 **Rules Disabled:**
-- 942290 (SQL Injection Detection)
-- 920100 (URL Encoding)
+- 942290 (SQL Injection Detection), on the exact GET route families listed in
+  the effective policy above
+- 942100 and 942151, only when the `$filter` argument is present on those
+  routes
 
-**Scope:** `.svc/` OData endpoints (Submissions, Entities)
-**Condition:** Requires session cookie (`__Host-session=` or `__csrf=`)
-**Reason:** OData uses `$filter`, `$orderby` which can false-positive as SQLi keywords
+**Scope:** Central form, draft-form, and dataset `.svc` GET routes, including
+the optional `/key/:token` prefix. No cookie requirement is applied here;
+authentication remains a backend concern.
+
+**Rule retained:** 920100 (URL Encoding), along with every other CRS rule.
 
 ```nginx
 SecRule REQUEST_METHOD "@streq GET" "id:1000201,phase:1,pass,nolog,chain"
-  SecRule REQUEST_URI "@rx \.svc/(?:Submissions|Entities)(?:$|\?)" "chain"
-    SecRule REQUEST_HEADERS:Cookie "@rx (__Host-session=|__csrf=)" \
-      "ctl:ruleRemoveById=942290,ctl:ruleRemoveById=920100"
+  SecRule REQUEST_FILENAME "@rx ^/v1/(?:key/[^/]+/)?projects/[0-9]+/(?:forms/[^/]+(?:\.svc|/draft\.svc)|datasets/[^/]+\.svc)(?:/.*)?$" \
+    "t:none,ctl:ruleRemoveById=942290"
+
+SecRule REQUEST_METHOD "@streq GET" "id:1000202,phase:1,pass,nolog,chain"
+  SecRule REQUEST_FILENAME "@rx ^/v1/(?:key/[^/]+/)?projects/[0-9]+/(?:forms/[^/]+(?:\.svc|/draft\.svc)|datasets/[^/]+\.svc)(?:/.*)?$" "chain"
+    SecRule ARGS_NAMES "@streq $filter" \
+      "t:none,ctl:ruleRemoveById=942100,ctl:ruleRemoveById=942151"
 ```
 
 #### `30-odk-api-methods.conf`
 
 **Rule Disabled:** 911100 (Method Enforcement)
 **Scope:** `/v1/` API endpoints
-**Condition:** Requires session cookie (`__Host-session=` or `__csrf=`)
-**Reason:** Central uses REST methods beyond CRS defaults (GET/HEAD/POST/OPTIONS)
+**Condition:** PUT, PATCH, or DELETE under `/v1/`; no credential-shape gating
+**Reason:** Central uses REST methods beyond CRS defaults
 
 ```nginx
-SecRule REQUEST_URI "@rx ^/v1/" \
+SecRule REQUEST_METHOD "@pm PUT PATCH DELETE" \
   "id:1000003,phase:1,pass,nolog,chain"
-  SecRule REQUEST_HEADERS:Cookie "@rx (?:^|;\s*)(?:__Host-session=|__csrf=)" \
+  SecRule REQUEST_URI "@rx ^/v1(?:/|$)" \
     "t:none,ctl:ruleRemoveById=911100"
 ```
 
@@ -303,7 +335,9 @@ SecRule REQUEST_METHOD "!@within %{tx.allowed_methods}" \
 **Why It's Disabled for /v1/:**
 - Central API requires PUT/PATCH/DELETE for REST operations
 - Legitimate API calls use these methods (e.g., update app user, delete submission)
-- Session cookie requirement prevents abuse
+- Authentication and authorization remain the backend's responsibility; this
+  method exception is not gated by cookie, Bearer, Basic, field-key, or `st`
+  credentials.
 
 ### Rule 949110/949111: Blocking Evaluation
 
@@ -311,7 +345,9 @@ SecRule REQUEST_METHOD "!@within %{tx.allowed_methods}" \
 
 **Purpose:** Final anomaly score evaluation and blocking decision
 **Effect:** When anomaly score exceeds threshold, request is blocked
-**Why Disabled for /v1/:** API has its own validation; CRS blocking would interfere
+**Current status:** Remains active for `/v1/` and OData. API and OData
+exceptions remove only the specific rules documented above; they do not bypass
+aggregate anomaly scoring.
 
 ### Rule 930130: Restricted File Access
 
@@ -321,7 +357,10 @@ SecRule REQUEST_METHOD "!@within %{tx.allowed_methods}" \
 ### Rule 942290: SQL Injection Detection
 
 **Purpose:** Detects SQL injection patterns using libinjection
-**Why Disabled for OData:** OData `$filter` syntax resembles SQL (e.g., `$filter=Name eq 'value'`)
+**Why Partly Removed for OData:** OData `$filter` syntax can resemble SQL.
+Rule `942290` is removed only on the exact documented GET route families;
+`942100` and `942151` are removed only when `$filter` is present. Rule `920100`
+and the remaining CRS rules stay active.
 
 ---
 
@@ -351,7 +390,7 @@ SecRule REQUEST_METHOD "!@within %{tx.allowed_methods}" \
 |--------|--------|
 | **VG Features** | ✅ All VG features work correctly |
 | **Security** | ✅ Modsecurity provides real protection |
-| **Production** | ✅ Exclusions properly scoped with session cookies |
+| **Production** | ✅ Exclusions scoped to documented paths and request shapes |
 | **Test Failures** | ⚠️ Status code mismatches, not functional bugs |
 
 **Recommendation:** Accept the 72% pass rate. The security benefit outweighs test compatibility with upstream.
@@ -375,11 +414,11 @@ SecRule REQUEST_METHOD "!@within %{tx.allowed_methods}" \
 6. **Request Size Limits** - Prevents DoS via large requests
 7. **Anomaly Detection** - Blocks suspicious request patterns
 
-### VG-Specific Exclusions Are Safe Because
+### VG-Specific Exclusions Are Narrow Because
 
-1. **Require Session Cookies**
-   - Unauthenticated traffic still fully protected
-   - Only authenticated sessions get exclusions
+1. **Do Not Pretend to Authenticate at the WAF**
+   - Credential appearance is not proof of authentication
+   - Central validates cookie, Bearer, Basic, field-key, and `st` credentials
 
 2. **Scoped to Specific Endpoints**
    - OData exclusions only apply to `.svc/` endpoints
@@ -467,7 +506,8 @@ If you discover new false positives:
 
 2. **Create a scoped exclusion** in `crs_custom/`:
    - Use `SecRule` with chain conditions
-   - Require session cookies for API exclusions
+   - Scope API exceptions by method and `/v1/` path; leave credential handling
+     to the backend
    - Scope to specific endpoints with regex
 
 3. **Test the exclusion:**

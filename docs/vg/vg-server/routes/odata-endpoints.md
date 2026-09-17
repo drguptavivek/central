@@ -1,8 +1,29 @@
 # OData Endpoints
 
-> **Last Updated:** 2026-01-14
+> **Last Updated:** 2026-09-17
 > **Protocol:** OData v4
 > **Purpose:** Data query protocol for submissions and entities
+
+## Effective WAF policy (2026-09-17)
+
+Central's WAF tuning applies only to GET requests on these exact route
+families, with an optional `/key/:token` prefix:
+
+```text
+/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId.svc[/...]
+/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId/draft.svc[/...]
+/v1/(key/:token/)?projects/:projectId/datasets/:datasetName.svc[/...]
+```
+
+On a matching route, CRS rule `942290` is removed. When `$filter` is present,
+`942100` and `942151` are removed for that request. Rule `920100` remains
+active, as do anomaly scoring, XSS, traversal, and all other CRS rules. The
+backend performs authentication and authorization; cookie, Bearer, Basic,
+field-key, and `st` requests all reach those checks. The WAF exception does not
+make SQL injection impossible.
+
+PUT, PATCH, and DELETE under `/v1/` remove only `911100`, without credential
+shape gating. This does not remove `949110` or `949111`.
 
 ---
 
@@ -33,16 +54,21 @@ OData (Open Data Protocol) endpoints provide RESTful access to form submissions 
 
 ---
 
-## Current CRS Exclusions
+## Historical CRS exclusion description (superseded)
 
-**Already Configured:**
+The former broad description is retained for history. The effective policy at
+the top of this document supersedes it.
+
+**Historical configuration:**
 ```nginx
 # Location: crs_custom/20-odk-odata-exclusions.conf
 SecRule REQUEST_URI "@endsWith .svc" \
     "id:1000,phase:2,pass,nolog,ctl:ruleRemoveById=942290"
 ```
 
-**Rule 942290** - SQL injection detection is disabled for all `.svc` endpoints.
+**Historical claim:** Rule 942290 was previously described as disabled for all
+`.svc` endpoints; the current rule is restricted to the exact route families
+above.
 
 **Reason:** OData filter syntax (`$filter=status eq 'active'`) looks like SQL injection to CRS rules.
 
@@ -64,7 +90,7 @@ SecRule REQUEST_URI "@endsWith .svc" \
 | **Load** | **HIGH** (data sync) |
 | **Payload** | MEDIUM (XML response) |
 | **Risk** | NONE |
-| **CRS Exclusions** | **942290** |
+| **CRS Tuning** | `942290`; plus `942100`,`942151` when `$filter` is present |
 | **Special** | Returns service document |
 
 **Request:**
@@ -104,7 +130,7 @@ GET /v1/projects/1/forms/basic.svc
 | **Load** | MEDIUM (initial connection) |
 | **Payload** | SMALL (<10KB) |
 | **Risk** | NONE |
-| **CRS Exclusions** | **942290** |
+| **CRS Tuning** | `942290`; plus `942100`,`942151` when `$filter` is present |
 
 **Request:**
 ```
@@ -146,7 +172,7 @@ GET /v1/projects/1/forms/basic.svc/($metadata)
 | **Load** | **HIGH** (data sync) |
 | **Payload** | **LARGE** (all data) |
 | **Risk** | NONE |
-| **CRS Exclusions** | **942290** |
+| **CRS Tuning** | `942290`; plus `942100`,`942151` when `$filter` is present |
 | **Special** | Supports `$filter`, `$top`, `$skip` |
 
 **Request:**
@@ -173,7 +199,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$top=100
 - **HIGH LOAD**: Primary data sync endpoint
 - **LARGE RESPONSE**: Can return thousands of records
 - **Query parameters**: Can be complex ($filter with multiple conditions)
-- **CRS 942290 EXCLUDED**: Required for $filter syntax
+- **CRS 942290 EXCLUDED**: Required because CRS treats `$`-prefixed OData argument names as NoSQL operators
 
 ---
 
@@ -191,7 +217,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$top=100
 | **Load** | MEDIUM |
 | **Payload** | MEDIUM (single record) |
 | **Risk** | NONE |
-| **CRS Exclusions** | **942290** |
+| **CRS Tuning** | `942290`; plus `942100`,`942151` when `$filter` is present |
 
 **Request:**
 ```
@@ -218,7 +244,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions(uuid='12345678-1234-1234-1234-123
 | **Load** | MEDIUM |
 | **Payload** | SMALL |
 | **Risk** | NONE |
-| **CRS Exclusions** | **942290** |
+| **CRS Tuning** | `942290`; plus `942100`,`942151` when `$filter` is present |
 
 **WAF Considerations:**
 - Similar structure to submission endpoints
@@ -240,7 +266,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions(uuid='12345678-1234-1234-1234-123
 | **Load** | MEDIUM |
 | **Payload** | SMALL |
 | **Risk** | NONE |
-| **CRS Exclusions** | **942290** |
+| **CRS Tuning** | `942290`; plus `942100`,`942151` when `$filter` is present |
 
 ---
 
@@ -258,7 +284,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions(uuid='12345678-1234-1234-1234-123
 | **Load** | MEDIUM |
 | **Payload** | **LARGE** (all entities) |
 | **Risk** | NONE |
-| **CRS Exclusions** | **942290** |
+| **CRS Tuning** | `942290`; plus `942100`,`942151` when `$filter` is present |
 
 **WAF Considerations:**
 - Returns all entities in dataset
@@ -280,7 +306,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions(uuid='12345678-1234-1234-1234-123
 | **Load** | MEDIUM (testing) |
 | **Payload** | MEDIUM |
 | **Risk** | NONE |
-| **CRS Exclusions** | **942290** |
+| **CRS Tuning** | `942290`; plus `942100`,`942151` when `$filter` is present |
 
 **WAF Considerations:**
 - Same as production endpoints but for draft forms
@@ -301,7 +327,9 @@ GET /v1/projects/1/forms/basic.svc/Submissions(uuid='12345678-1234-1234-1234-123
 | `?$filter=status eq 'submitted' and age ge 18` | And | `WHERE status = 'submitted' AND age >= 18` |
 | `?$filter=status eq 'submitted' or status eq 'pending'` | Or | `WHERE status = 'submitted' OR status = 'pending'` |
 
-**WAF Impact:** All `eq`, `ne`, `gt`, `ge`, `lt`, `le`, `and`, `or` keywords trigger SQLi rules.
+**WAF Impact:** These operators can resemble SQLi input. The scoped OData
+policy tunes only the documented false-positive rules; the remaining CRS rules
+still inspect the request.
 
 ### Select Example
 
@@ -333,25 +361,12 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$top=100&$skip=200
 
 ### Current Exclusions
 
-**File:** `crs_custom/20-odk-odata-exclusions.conf`
-```nginx
-SecRule REQUEST_URI "@endsWith .svc" \
-    "id:1000,phase:2,pass,nolog,ctl:ruleRemoveById=942290"
-```
+See the effective policy at the top of this document and
+`crs_custom/20-odk-odata-exclusions.conf`. The exact route match removes
+`942290`; `$filter` additionally removes `942100` and `942151`. Rule `920100`
+and all other CRS rules remain active.
 
-**What this does:**
-- Disables rule 942290 (SQLi detection) for all `.svc` endpoints
-- Applied in phase 2 (after request body parsing)
-- Passes through (doesn't block) without logging
-
-**Why this is necessary:**
-- OData `$filter` parameter contains SQL-like syntax
-- Examples that trigger 942290:
-  - `?$filter=field eq 'value'`
-  - `?$filter=status eq 'active' or age gt 18`
-  - `?$filter=name ne 'test' and status eq 'pending'`
-
-### Recommended Additional Exclusions
+### Historical additional-exclusion proposals (non-operative)
 
 **Consider adding for query length:**
 ```nginx
@@ -424,7 +439,7 @@ Purpose: View and manage entity datasets
 
 ## Security Analysis
 
-### SQL Injection Risk: **NONE** ✅
+### SQL Injection Risk: mitigated by layered controls
 
 **Why OData is Safe from SQL Injection:**
 
@@ -479,14 +494,14 @@ if (node.type === 'FirstMemberExpression' || node.type === 'RootExpression') {
 }
 ```
 
-**3. Authorization Enforcement** (`server/lib/resources/odata.js:80-85`)
+**3. Authorization Enforcement** (`server/lib/resources/odata.js`)
 
 ```javascript
 odataResource('/projects/:projectId/forms/:xmlFormId.svc', false, (Forms, auth, params) =>
   Forms.getByProjectAndXmlFormId(params.projectId, params.xmlFormId, Form.PublishedVersion)
     .then(getOrNotFound)
     .then(ensureDef)
-    .then((form) => auth.canOrReject('submission.read', form))); // ← PERMISSION CHECK
+    .then((form) => canExportSubmissionsOrReject(auth, form))); // submission.export
 ```
 
 **4. Entity Authorization** (`server/lib/resources/odata-entities.js:43-46`)
@@ -502,8 +517,11 @@ service.get('/projects/:projectId/datasets/:name.svc/Entities', endpoint.odata.j
 **What This Means:**
 - ✅ All SQL queries are parameterized via Slonik's `sql` template literal
 - ✅ Only fields in `odataToColumnMap` can be queried (whitelist validation)
-- ✅ Users must have `submission.read` or `entity.list` permission
-- ✅ CRS 942290 exclusion is SAFE because no SQL injection is possible
+- ✅ Form submission OData requires `submission.export`; `submission.read`
+  alone does not authorize OData export
+- ✅ Dataset OData requires `entity.list`
+- ✅ CRS 942290 is scoped to the documented OData routes; application parsing
+  and parameterization provide additional defense in depth
 
 ---
 
@@ -637,7 +655,7 @@ service.get(base, endpoint.odata.json(async ({ Forms, Projects }, { auth, params
 | Control | Implementation | Effectiveness |
 |---------|----------------|---------------|
 | **Authentication** | Field Key / Bearer token | ✅ High |
-| **Authorization** | `submission.read` / `entity.list` | ✅ High |
+| **Authorization** | `submission.export` for form OData; `entity.list` for dataset OData | ✅ High |
 | **Field Whitelisting** | `odataToColumnMap` validation | ✅ High |
 | **Parameterized Queries** | Slonik ORM | ✅ High |
 | **OIDC Disable** | Client-side only | ⚠️ Low |
@@ -1108,23 +1126,24 @@ service.get(`${base}/:table`, endpoint.odata.json(async ({ Forms, Submissions, e
 
 | Threat | Risk Level | Mitigation Status |
 |--------|------------|-------------------|
-| SQL Injection | **NONE** | ✅ Slonik parameterized queries |
+| SQL Injection | **Mitigated** | ✅ Slonik parameterized queries plus scoped WAF tuning |
 | Authorization Bypass | **NONE** | ✅ `auth.canOrReject()` enforced |
 | Field Injection | **NONE** | ✅ Whitelist validation |
 | DoS via Complex Queries | **LOW-MEDIUM** | ⚠️ Add query complexity limits |
 | **Data Scraping** | **HIGH** | 🔴 **NO rate limiting** |
 | **Automated Tool Abuse** | **MEDIUM** | 🔴 **NO rate limiting** |
-| CRS False Positives | **NONE** | ✅ Rule 942290 exclusion is safe |
+| CRS False Positives | **Scoped** | ✅ Exact OData route and `$filter` tuning |
 
 **Critical Gap:** No rate limiting on OData endpoints (login endpoints have rate limiting, but OData does not).
 
 ### Current CRS Exclusion: **SAFE TO KEEP** ✅
 
-**Rule 942290** (SQLi detection) exclusion for `.svc` endpoints is **SAFE** because:
+**Rule 942290** (SQLi detection) is tuned only for the exact documented OData
+GET route families because:
 - Slonik ORM prevents SQL injection via parameterized queries
 - OData filter is parsed into AST, not concatenated
 - Only whitelisted fields are allowed
-- No SQL injection possible despite SQL-like syntax
+- Remaining CRS rules and backend validation still apply despite SQL-like syntax
 
 ### Recommended Actions
 

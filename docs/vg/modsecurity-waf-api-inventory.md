@@ -1,8 +1,30 @@
 # ModSecurity WAF API Inventory
 
-> **Last Updated:** 2026-01-14
-> **Version:** ODK Central v2025.4.1 (VG fork)
+> **Last Updated:** 2026-09-17
+> **Version:** ODK Central v2026.3.0 (VG fork)
 > **Purpose:** Comprehensive reference for ModSecurity WAF rule configuration
+
+## Effective CRS policy
+
+The WAF exceptions are request-scoped. OData applies only to GET requests on
+these exact Central route families, including the optional `/key/:token`
+prefix:
+
+```text
+/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId.svc[/...]
+/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId/draft.svc[/...]
+/v1/(key/:token/)?projects/:projectId/datasets/:datasetName.svc[/...]
+```
+
+On those routes, `942290` is removed. When `$filter` is present, `942100` and
+`942151` are also removed for that request. `920100` remains active, as do
+anomaly scoring, XSS, traversal, and every other CRS rule. Cookie, Bearer,
+Basic, field-key, and `st` authentication requests all reach backend
+authentication and authorization.
+
+PUT, PATCH, and DELETE under `/v1/` remove only `911100`, without
+credential-shape gating. No `/v1/` blanket exception removes `949110` or
+`949111`.
 
 ---
 
@@ -29,9 +51,9 @@
 | Rule | Description | Applied To | Reason |
 |------|-------------|------------|--------|
 | **911100** | Method enforcement | `/v1/` API | Allow PATCH/PUT/DELETE |
-| **942290** | SQLi detection | OData `.svc/` | SQL-like syntax in $filter |
-| **949110** | Blocking evaluation | `/v1/` API | Anomaly scoring adjustments |
-| **949111** | Blocking evaluation | `/v1/` API | Anomaly scoring adjustments |
+| **942290** | SQLi detection | Exact documented OData GET routes | OData protocol syntax |
+| **942100** | Libinjection SQLi | OData routes when `$filter` is present | OData filter syntax |
+| **942151** | SQL function SQLi | OData routes when `$filter` is present | OData filter syntax |
 
 ---
 
@@ -194,7 +216,7 @@
 - **File size**: Up to 100MB accepted
 - **Test endpoints**: Anonymous access with draft token in URL
 
-**CRS Exclusions Needed:**
+**Historical WAF recommendations (non-operative):**
 - Consider allowing large payloads for submission endpoints
 - May need to relax body size limits for multipart submissions
 
@@ -204,24 +226,24 @@
 
 | Route | Methods | Auth | Load | Payload | Risk | CRS | Special |
 |-------|---------|------|------|---------|------|-----|---------|
-| `GET /v1/.../forms/:id.svc` | GET | Field Key | **HIGH** | SMALL | NONE | **942290** | Metadata |
-| `GET /v1/.../forms/:id.svc/\$metadata` | GET | Field Key | HIGH | SMALL | NONE | **942290** | OData metadata |
-| `GET /v1/.../forms/:id.svc/Submissions` | GET | Field Key | **HIGH** | MEDIUM | NONE | **942290** | OData feed |
-| `GET /v1/.../forms/:id.svc/Submissions(:uuid)` | GET | Field Key | HIGH | MEDIUM | NONE | **942290** | Single entity |
-| `GET /v1/.../datasets/:name.svc` | GET | Field Key | MEDIUM | SMALL | NONE | **942290** | Entity metadata |
-| `GET /v1/.../datasets/:name.svc/Entities` | GET | Field Key | MEDIUM | MEDIUM | NONE | **942290** | Entity feed |
+| `GET /v1/(key/:token/)?projects/:id/forms/:form.svc[/...]` | GET | Backend-supported cookie/Bearer/Basic/field-key/`st` | **HIGH** | SMALL-MEDIUM | NONE | **942290**; `942100`,`942151` if `$filter` | Service, metadata, feed, and entity paths |
+| `GET /v1/(key/:token/)?projects/:id/forms/:form/draft.svc[/...]` | GET | Backend-supported cookie/Bearer/Basic/field-key/`st` | HIGH | SMALL-MEDIUM | NONE | **942290**; `942100`,`942151` if `$filter` | Draft OData paths |
+| `GET /v1/(key/:token/)?projects/:id/datasets/:name.svc[/...]` | GET | Backend-supported cookie/Bearer/Basic/field-key/`st` | MEDIUM | SMALL-MEDIUM | NONE | **942290**; `942100`,`942151` if `$filter` | Entity service, metadata, and feed paths |
 
 **WAF Notes:**
 - **HIGH LOAD**: OData queries called frequently for data sync
-- **CRS 942290 EXCLUDED**: SQLi detection disabled due to OData syntax
+- **CRS 942290 EXCLUDED** only on the exact route families above; `942100` and
+  `942151` are removed only when `$filter` is present
 - **OData syntax**: `$filter`, `$select`, `$orderby`, `$top`, `$skip`
-- **SQL-like patterns**: `$filter=field eq 'value'` triggers SQLi rules
+- **SQL-like patterns**: `$filter=field eq 'value'` can trigger SQLi rules;
+  scoped tuning handles the known OData syntax while remaining CRS rules stay active
 - **Query strings**: Can be very long (complex filters)
 
 **CRS Exclusions (Current):**
 ```nginx
-# In files/nginx/odk.conf.template and crs_custom/20-odk-odata-exclusions.conf
-SecRuleRemoveById 942290  # SQLi detection for OData
+# In crs_custom/20-odk-odata-exclusions.conf
+# Exact route match removes 942290; $filter match removes 942100 and 942151.
+# Rule 920100 and all other CRS rules remain active.
 ```
 
 ---
@@ -408,6 +430,9 @@ SecRuleRemoveById 942290  # SQLi detection for OData
 
 ## WAF Configuration Recommendations
 
+The recommendations below are operational guidance. The effective CRS
+exceptions are defined in the policy at the top of this document.
+
 ### 1. High-Load Endpoints (Fast Rules Required)
 
 These endpoints need optimized WAF rules to avoid performance impact:
@@ -443,17 +468,16 @@ POST /v1/backup    # Uses exec() with config values
 ```nginx
 # Location: files/nginx/odk.conf.template, crs_custom/
 location ~ ^/v\d {
-    # Disable CRS blocking rules for Central API
-    modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
+    # Remove only method enforcement for supported REST methods.
+    modsecurity_rules 'SecRuleRemoveById 911100';
 }
 
 # Location: crs_custom/20-odk-odata-exclusions.conf
-# OData SQL-like syntax
-SecRule REQUEST_URI "@endsWith .svc" \
-    "id:1000,phase:2,pass,nolog,ctl:ruleRemoveById=942290"
+# Exact route and $filter-scoped exceptions are in the current crs_custom file.
+# Rule 920100 and all other CRS rules remain active.
 ```
 
-### 4. Recommended Additional Exclusions
+### 4. Historical additional-exclusion proposals (non-operative)
 
 **Consider adding:**
 ```nginx

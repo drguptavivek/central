@@ -1,7 +1,7 @@
 # ModSecurity CRS Exclusions Reference
 
-> **Last Updated:** 2026-01-14
-> **OWASP CRS Version:** v4.21.0
+> **Last Updated:** 2026-09-17
+> **OWASP CRS Version:** v4.25.1 (image-pinned)
 > **Purpose:** Complete reference for all CRS rule exclusions
 
 ---
@@ -14,119 +14,57 @@ This document explains which OWASP CRS rules are disabled or modified for ODK Ce
 - Nginx config: `files/nginx/odk.conf.template`
 - Custom exclusions: `crs_custom/` directory
 
+## Effective policy (2026-09-17)
+
+Only the following request-scoped exceptions are active:
+
+| Request | Rules removed | Rules retained |
+|---|---|---|
+| GET on `/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId.svc[/...]`, `/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId/draft.svc[/...]`, or `/v1/(key/:token/)?projects/:projectId/datasets/:datasetName.svc[/...]` | `942290` | `920100` and every other CRS rule |
+| The same OData routes when `$filter` is present | `942100`, `942151` | `942290` is already removed; `920100`, anomaly, XSS, traversal, and all other CRS rules remain |
+| PUT, PATCH, or DELETE under `/v1/` | `911100` | `949110`, `949111`, and every other CRS rule |
+
+The OData exceptions do not require a session cookie. Cookie, Bearer, Basic,
+field-key, and `st` requests reach Central's backend authentication and
+authorization checks. These exceptions tune false positives in recognized
+protocol syntax; they are not a complete SQL injection control.
+
 ---
 
 ## Current Exclusions Summary
 
 | Rule ID | Name | Disabled For | Reason |
 |---------|------|--------------|--------|
-| **911100** | Method Enforcement | `/v1/` API | Allow PATCH/PUT/DELETE methods |
-| **942290** | SQLi Detection | OData `.svc/` | OData filter syntax looks like SQL |
-| **949110** | Anomaly Scoring | `/v1/` API | Lower threshold for API traffic |
-| **949111** | Anomaly Scoring | `/v1/` API | Lower threshold for API traffic |
+| **911100** | Method Enforcement | PUT/PATCH/DELETE under `/v1/` | Central REST methods |
+| **942290** | SQLi Detection | Exact documented OData GET routes | OData protocol syntax |
+| **942100** | Libinjection SQLi | Those OData routes when `$filter` is present | OData filter syntax |
+| **942151** | SQL function SQLi | Those OData routes when `$filter` is present | OData filter syntax |
 
 ---
 
 ## Exclusion 1: Method Enforcement (Rule 911100)
 
-**Location:** `files/nginx/odk.conf.template`
+For PUT, PATCH, and DELETE requests under `/v1/`, `crs_custom/30-odk-api-methods.conf`
+removes only `911100`. It is not gated on a cookie or any other credential
+shape. `949110`, `949111`, and all other CRS rules remain active.
 
-```nginx
-location ~ ^/v\d {
-    # VG: Disable CRS blocking rules for Central API
-    modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
+## Exclusion 2: OData syntax rules (942290, 942100, 942151)
 
-    # VG: Disable CRS blocking rules for Central API (PATCH/PUT/DELETE methods)
-    modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
-}
-```
+`crs_custom/20-odk-odata-exclusions.conf` applies only to GET requests on the
+three documented form, draft-form, and dataset `.svc` route families. The
+optional `/key/:token` prefix is part of those families. It removes `942290` on
+the route, and removes `942100` and `942151` only when `$filter` is present.
+It does not remove `920100`.
 
-**Rule 911100:** Enforces allowed HTTP methods (GET, POST, only)
+The exceptions account for protocol syntax that can resemble SQL injection;
+they are not an assertion that SQL injection is impossible. Authentication and
+authorization are performed by Central's backend for cookie, Bearer, Basic,
+field-key, and `st` requests.
 
-**Why Disabled:**
-- ODK Central API uses PATCH and PUT methods
-- DELETE method used for resource deletion
-- RESTful API requires full HTTP method support
+## Aggregate anomaly rules (949110, 949111)
 
-**Impact:**
-- Allows: GET, POST, PUT, PATCH, DELETE
-- Application-layer validation still applies
-- No security risk (proper auth required)
-
-**Alternatives:**
-- Could selectively enable per-endpoint
-- Current approach: blanket disable for `/v1/` path
-
----
-
-## Exclusion 2: SQL Injection Detection (Rule 942290)
-
-**Location:** `crs_custom/20-odk-odata-exclusions.conf`
-
-```nginx
-# OData SQL-like syntax in $filter parameter
-SecRule REQUEST_URI "@endsWith .svc" \
-    "id:1000,phase:2,pass,nolog,ctl:ruleRemoveById=942290"
-```
-
-**Rule 942290:** Detects SQL injection patterns
-
-**Why Disabled:**
-- OData query syntax uses SQL-like keywords:
-  - `?$filter=field eq 'value'` (equals)
-  - `?$filter=age gt 18` (greater than)
-  - `?$filter=status eq 'active' or age gt 18` (or/and)
-
-**Examples That Trigger 942290:**
-```
-# These are legitimate OData queries:
-GET /v1/projects/1/forms/basic.svc/Submissions?$filter=status eq 'submitted'
-GET /v1/projects/1/forms/basic.svc/Submissions?$filter=name ne 'test' and age ge 18
-GET /v1/projects/1/datasets/people.svc/Entities?$filter=createdAt gt 2023-01-01
-```
-
-**Impact:**
-- SQLi detection disabled ONLY for `.svc` endpoints
-- Backend uses parameterized queries (Slonik)
-- No actual SQL injection risk
-
-**Security Note:**
-- Slonik ORM prevents SQL injection
-- All queries are parameterized
-- This exclusion is SAFE
-
----
-
-## Exclusion 3: Anomaly Scoring (Rules 949110, 949111)
-
-**Location:** `files/nginx/odk.conf.template`
-
-```nginx
-modsecurity_rules 'SecRuleRemoveById 911100 949110 949111';
-```
-
-**Rules 949110, 949111:** Anomaly scoring thresholds
-
-**Why Disabled:**
-- API requests often trigger multiple lower-severity rules
-- Combined anomaly score exceeds threshold
-- Legitimate API traffic blocked
-
-**Example Triggers:**
-- Large JSON bodies (JSON rule)
-- Multipart uploads (file upload rules)
-- OData queries (SQL-like syntax)
-- Form field names (various patterns)
-
-**Impact:**
-- Lower blocking threshold for `/v1/` API
-- Individual rules still log warnings
-- Only combined score threshold adjusted
-
-**Risk Assessment:**
-- **LOW RISK**: Application-layer validation still applies
-- All endpoints require authentication
-- Input validation at application level
+These rules remain enabled for `/v1/` and OData requests. They are not part of
+the current exception policy.
 
 ---
 
@@ -153,9 +91,15 @@ SecRule REQUEST_URI "@rx /client-config.json$" \
 
 ### crs_custom/20-odk-odata-exclusions.conf
 ```nginx
-# OData SQL-like syntax
-SecRule REQUEST_URI "@endsWith .svc" \
-    "id:1000,phase:2,pass,nolog,ctl:ruleRemoveById=942290"
+# Exact OData GET route families; see the effective policy above.
+SecRule REQUEST_METHOD "@streq GET" "id:1000201,phase:1,pass,nolog,chain"
+  SecRule REQUEST_FILENAME "@rx ^/v1/(?:key/[^/]+/)?projects/[0-9]+/(?:forms/[^/]+(?:\.svc|/draft\.svc)|datasets/[^/]+\.svc)(?:/.*)?$" \
+    "t:none,ctl:ruleRemoveById=942290"
+
+SecRule REQUEST_METHOD "@streq GET" "id:1000202,phase:1,pass,nolog,chain"
+  SecRule REQUEST_FILENAME "@rx ^/v1/(?:key/[^/]+/)?projects/[0-9]+/(?:forms/[^/]+(?:\.svc|/draft\.svc)|datasets/[^/]+\.svc)(?:/.*)?$" "chain"
+    SecRule ARGS_NAMES "@streq $filter" \
+      "t:none,ctl:ruleRemoveById=942100,ctl:ruleRemoveById=942151"
 ```
 
 **See:** Exclusion 2 above
@@ -170,15 +114,17 @@ SecRule REQUEST_URI "@endsWith .svc" \
 
 ### crs_custom/40-odk-api-anomaly-threshold.conf
 ```nginx
-# Adjust anomaly scoring for API endpoints
-# (Handled in nginx config, kept for reference)
+# No active exclusion. Aggregate anomaly rules remain enabled.
 ```
 
-**Note:** This is documented in nginx config instead
+**Note:** This file is retained as historical documentation only.
 
 ---
 
-## Recommended Additional Exclusions
+## Historical recommendations (non-operative)
+
+The following proposals are retained for history and are not part of the
+effective policy above.
 
 ### 1. Large Payload Exclusions
 
@@ -228,7 +174,7 @@ SecRule REQUEST_URI "@rx /sessions$" \
 
 ---
 
-## Exclusion Decision Flow
+## Historical exclusion decision flow (superseded)
 
 ```
 ┌─────────────────────────────────────────┐
@@ -267,20 +213,20 @@ SecRule REQUEST_URI "@rx /sessions$" \
 
 ---
 
-## Security Impact Assessment
+## Historical security assessment (superseded)
 
 ### Overall Risk: **LOW**
 
 | Exclusion | Risk Level | Mitigation |
 |-----------|------------|------------|
 | 911100 (Methods) | LOW | Application validation |
-| 942290 (SQLi) | **NONE** | Parameterized queries |
+| 942290 (SQLi) | LOW | Exact OData GET routes plus application parsing and parameterized queries |
 | 949110, 949111 (Anomaly) | LOW | Auth + app validation |
 
 **Why Safe:**
 1. **Authentication Required:** All endpoints have auth
 2. **Input Validation:** Application-level checks
-3. **Parameterized Queries:** No SQL injection possible
+3. **Parameterized Queries:** Reduce SQL injection risk after application parsing
 4. **Rate Limiting:** Application-level protection
 
 ---

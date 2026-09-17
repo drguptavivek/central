@@ -81,3 +81,20 @@ services:
       - "[::1]:11001:443"
     volumes:
       - ../../files/nginx/odk.conf.dev.template:/etc/nginx/templates/odk.conf.template:ro
+  nginx-vg-odata-waf:
+    extends:
+      file: lib.docker-compose.yml
+      service: nginx
+    depends_on:
+      - client
+      - service
+      - enketo
+      - sentry-mock
+    environment:
+      - MODSEC_ENGINE_MODE=On
+      - SSL_TYPE=selfsign
+    ports:
+      - "127.0.0.1:11002:443"
+      - "[::1]:11002:443"
+    volumes:
+      - ../../files/nginx/odk.conf.template:/etc/nginx/templates/odk.conf.template:ro

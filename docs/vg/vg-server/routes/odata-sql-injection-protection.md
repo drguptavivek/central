@@ -1,7 +1,27 @@
 # OData SQL Injection Protection & ModSecurity Hardening
 
-> **Last Updated:** 2026-01-14
+> **Last Updated:** 2026-09-17
 > **Purpose:** Complete analysis of SQL injection protections in OData endpoints and ModSecurity hardening recommendations
+
+## Effective WAF policy (2026-09-17)
+
+For GET requests on the exact Central OData route families below, including an
+optional `/key/:token` prefix, the WAF removes `942290`:
+
+```text
+/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId.svc[/...]
+/v1/(key/:token/)?projects/:projectId/forms/:xmlFormId/draft.svc[/...]
+/v1/(key/:token/)?projects/:projectId/datasets/:datasetName.svc[/...]
+```
+
+When `$filter` is present on those routes, it also removes `942100` and
+`942151`. Rule `920100`, anomaly scoring, XSS, traversal, and all other CRS
+rules remain active. Backend authentication and authorization apply to cookie,
+Bearer, Basic, field-key, and `st` requests; the WAF tuning does not make SQL
+injection impossible.
+
+For PUT, PATCH, and DELETE under `/v1/`, only `911100` is removed, without
+credential-shape gating. `949110` and `949111` remain active.
 
 ---
 
@@ -25,17 +45,22 @@ This document analyzes:
 | **Field Whitelisting** | ✅ Active | **HIGH** - Only allowed fields |
 | **AST Parsing** | ✅ Active | **HIGH** - Validated syntax |
 | **Function Whitelist** | ✅ Active | **HIGH** - Only 7 functions |
-| **ModSecurity SQLi** | ⚠️ **Disabled** | N/A - False positives |
-| **ModSecurity Protocol** | ⚠️ **Disabled** | N/A - False positives |
+| **ModSecurity SQLi** | ⚠️ **Scoped tuning** | `942290` on OData routes; `942100`/`942151` only with `$filter`; other rules active |
+| **ModSecurity Protocol** | ✅ **Active** | `920100` remains active |
 
 ### Current WAF Exclusions
 
 | Rule ID | Name | Excluded For | Risk Level |
 |---------|------|--------------|------------|
-| **942290** | SQLi Detection (NoSQL/MongoDB) | `.svc` with session cookie | **LOW** (covered by ORM) |
-| **920100** | Protocol Enforcement | `.svc` with session cookie | **LOW** (format is valid) |
+| **942290** | SQLi Detection (NoSQL/MongoDB) | Exact OData GET routes | Scoped for protocol syntax |
+| **942100** | Libinjection SQLi | OData routes with `$filter` | Scoped for filter syntax |
+| **942151** | SQL function SQLi | OData routes with `$filter` | Scoped for filter syntax |
+| **920100** | Protocol Enforcement | All requests | Remains active |
 
-**Conclusion:** Current exclusions are **SAFE** due to strong application-layer protections.
+**Conclusion:** Application-level parsing, field validation, and parameterized
+queries provide defense in depth. WAF tuning is narrowly scoped, and the
+remaining CRS rules continue to inspect requests; no layer should be described
+as making SQL injection impossible.
 
 ---
 
@@ -261,11 +286,16 @@ Problem.internal.unsupportedODataField({ text: ';DROP TABLE--' })
 # CRS can false-positive these (e.g. $filter flagged as SQLi keyword).
 #
 # We keep this scoped to .svc/ endpoints and only for requests that appear to
-# have Central session cookies, to avoid over-broad exclusions.
+# match Central's documented OData GET route families. Credential handling is
+# performed by the backend and is deliberately not part of this WAF match.
 SecRule REQUEST_METHOD "@streq GET" "id:1000201,phase:1,pass,nolog,chain"
-  SecRule REQUEST_URI "@rx \.svc/(?:Submissions|Entities)(?:$|\?)" "chain"
-    SecRule REQUEST_HEADERS:Cookie "@rx (__Host-session=|__csrf=)" \
-      "ctl:ruleRemoveById=942290,ctl:ruleRemoveById=920100"
+  SecRule REQUEST_FILENAME "@rx ^/v1/(?:key/[^/]+/)?projects/[0-9]+/(?:forms/[^/]+(?:\.svc|/draft\.svc)|datasets/[^/]+\.svc)(?:/.*)?$" \
+    "t:none,ctl:ruleRemoveById=942290"
+
+SecRule REQUEST_METHOD "@streq GET" "id:1000202,phase:1,pass,nolog,chain"
+  SecRule REQUEST_FILENAME "@rx ^/v1/(?:key/[^/]+/)?projects/[0-9]+/(?:forms/[^/]+(?:\.svc|/draft\.svc)|datasets/[^/]+\.svc)(?:/.*)?$" "chain"
+    SecRule ARGS_NAMES "@streq $filter" \
+      "t:none,ctl:ruleRemoveById=942100,ctl:ruleRemoveById=942151"
 ```
 
 ### What Each Exclusion Does
@@ -276,7 +306,8 @@ SecRule REQUEST_METHOD "@streq GET" "id:1000201,phase:1,pass,nolog,chain"
 
 - **Purpose:** Detects MongoDB/NoSQL injection patterns
 - **Patterns:** `$in`, `$ne`, `$gt`, `$lt`, `$and`, `$or`, `$not` operators
-- **Why Disabled:** OData uses same operators: `$filter`, `$orderby`, `$select`, etc.
+- **Why Scoped:** OData uses operators and argument names that can resemble
+  injection syntax. The exception is restricted to recognized OData GET paths.
 
 **False Positive Examples:**
 ```bash
@@ -290,17 +321,19 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$filter=status eq 'submitted' or 
 GET /v1/projects/1/forms/basic.svc/Submissions?$filter=age ge 18 and age lt 65
 ```
 
-**Security Impact:** **NONE** - Slonik ORM prevents SQL injection
+**Security Impact:** Reduced WAF coverage for this rule on recognized OData
+requests. Slonik parameterization and OData validation provide additional
+defense in depth; they do not make SQL injection impossible.
 
 #### Rule 920100 - Protocol Enforcement
 
 **From [OWASP CRS](https://github.com/coreruleset/coreruleset/blob/main/rules/REQUEST-920-PROTOCOL-ENFORCEMENT.conf):**
 
 - **Purpose:** Validates HTTP request line format
-- **Why Disabled:** Unknown (possibly long URLs with complex filters)
-- **Known Issue:** [Rule 920100 PCRE limits issue](https://github.com/coreruleset/coreruleset/issues/3640)
+- **Current status:** Active. Complex or encoded OData requests remain subject
+  to protocol validation.
 
-**Security Impact:** **LOW** - OData endpoints have valid HTTP format
+**Security Impact:** Protocol inspection remains active for OData requests.
 
 ### Scope of Exclusions
 
@@ -309,21 +342,20 @@ Exclusions are **tightly scoped** to minimize attack surface:
 | Scope Condition | Value | Purpose |
 |----------------|-------|---------|
 | **Method** | `GET` only | Only read operations |
-| **Path** | `\.svc/(?:Submissions|Entities)` | Only OData endpoints |
-| **Cookie** | `(__Host-session=|__csrf=)` | Only authenticated users |
+| **Path** | Exact form, draft-form, and dataset `.svc` families (optional `/key/:token`) | Only Central OData endpoints |
+| **Credentials** | Not matched by WAF | Backend authenticates cookie/Bearer/Basic/field-key/`st` |
 | **Phase** | `phase:1` | Before body parsing |
 
 **What This Means:**
 - ❌ No exclusions for POST/PUT/DELETE
 - ❌ No exclusions for non-OData endpoints
-- ❌ No exclusions for unauthenticated requests
-- ❌ No exclusions for non-session auth (Bearer/Field Key)
+- ✅ Requests using any backend-supported credential transport reach backend auth
 
 ---
 
 ## Attack Surface Analysis
 
-### SQL Injection: **IMPOSSIBLE** ✅
+### SQL injection: application-level controls
 
 | Attack Vector | Protection | Status |
 |---------------|------------|--------|
@@ -347,7 +379,7 @@ userInput → parseOdataExpr() → AST → op() → sql.identifier() → Slonik 
 // 4. Slonik - Parameterizes all values
 ```
 
-### NoSQL/MongoDB Injection: **IMPOSSIBLE** ✅
+### NoSQL/MongoDB injection: application context
 
 **Note:** Rule 942290 is for **MongoDB/NoSQL** injection, not SQL injection.
 
@@ -367,20 +399,21 @@ userInput → parseOdataExpr() → AST → op() → sql.identifier() → Slonik 
 
 ### Current State Assessment
 
-**Exclusions are minimal and well-scoped:** ✅
+**Current exclusions are narrowly scoped:** ✅
 
 | Aspect | Status | Notes |
 |--------|--------|-------|
-| Scope | ✅ Good | Only GET, only .svc, only authenticated |
-| Number of rules | ✅ Good | Only 2 rules excluded |
-| Layer | ⚠️ Medium | Excludes application-layer protections |
+| Scope | ✅ Good | Exact OData GET route families |
+| Number of rules | ✅ Good | Only documented false-positive rules are scoped |
+| Layer | ✅ Defense in depth | Backend validation and remaining CRS rules stay active |
 
-### Recommendation: KEEP CURRENT EXCLUSIONS ✅
+### Current policy: keep the scoped exceptions
 
 **Reason:**
 1. Application-layer protections are strong (Slonik + whitelisting)
-2. Exclusions are tightly scoped (GET only, authenticated only)
-3. No SQL injection risk with current implementation
+2. Exclusions are tightly scoped (GET only, exact OData routes)
+3. Application parsing and parameterization reduce SQL injection risk but do not
+   justify an absolute guarantee
 4. Disabling would block legitimate traffic
 
 ### Additional Hardening Options
@@ -443,9 +476,9 @@ SecRule REQUEST_URI "@rx \.svc/.*\$filter=" \
 
 ---
 
-#### Option 2: Reduce Exclusion Scope (More Aggressive)
+#### Historical option: reduce exclusion scope (superseded)
 
-**Current Exclusion:**
+**Historical exclusion:**
 ```nginx
 # Excludes 942290 and 920100 for ALL .svc requests with session cookie
 SecRule REQUEST_URI "@endsWith .svc" \
@@ -458,7 +491,7 @@ SecRule REQUEST_URI "@endsWith .svc" \
 SecRule REQUEST_URI "@rx \.svc/.*\$filter=(.*)(eq|ne|gt|ge|lt|le|and|or)" \
     "id:1001,phase:2,pass,nolog,ctl:ruleRemoveById=942290"
 
-# Keep 920100 exclusion (protocol enforcement is safe to disable)
+# Historical 920100 exclusion; do not use in the effective policy
 SecRule REQUEST_URI "@rx \.svc/(?:Submissions|Entities)" \
     "SecRule REQUEST_HEADERS:Cookie '@rx (__Host-session=|__csrf=)' \
     "ctl:ruleRemoveById=920100"
@@ -469,7 +502,8 @@ SecRule REQUEST_URI "@rx \.svc/(?:Submissions|Entities)" \
 - ❌ More complex to maintain
 - ❌ May miss edge cases
 
-**Recommendation:** Keep current exclusion (simpler, application-layer protection is sufficient)
+**Status:** Superseded by the exact route and `$filter`-scoped policy at the top
+of this document.
 
 ---
 
@@ -539,8 +573,8 @@ SecRule REQUEST_URI "@rx \.svc/" \
 │  │                 PROTECTION LAYERS                             │  │
 │  ├──────────────────────────────────────────────────────────────┤  │
 │  │ Layer 1: ModSecurity (WAF)                                   │  │
-│  │   - Protocol validation (920100 disabled - safe)             │  │
-│  │   - SQLi detection (942290 disabled - safe)                 │  │
+│  │   - Protocol validation (920100 active)                     │  │
+│  │   - Scoped SQLi tuning (942290; filter rules as documented) │  │
 │  │   - Can add: Parameter length, syntax validation             │  │
 │  │                                                             │  │
 │  │ Layer 2: Application (server/lib/data/odata-filter.js)      │  │
@@ -555,17 +589,17 @@ SecRule REQUEST_URI "@rx \.svc/" \
 │  │   - Bind parameters ✅ STRONG                                 │  │
 │  └──────────────────────────────────────────────────────────────┘  │
 │                                                                       │
-│  ✅ SQL Injection: IMPOSSIBLE (multiple strong layers)           │
-│  ✅ NoSQL Injection: IMPOSSIBLE (PostgreSQL, not MongoDB)        │
-│  ✅ Field Injection: IMPOSSIBLE (whitelist validation)          │
-│  ✅ Function Injection: IMPOSSIBLE (7 function whitelist)        │
+│  ✅ SQL injection: reduced by layered controls                  │
+│  ✅ NoSQL injection: no MongoDB query layer                     │
+│  ✅ Field injection: constrained by whitelist validation         │
+│  ✅ Function injection: constrained by function whitelist       │
 │                                                                       │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Threat Modeling
+## Historical threat modeling (status wording superseded)
 
 ### Attack Scenario 1: SQL Injection via $filter
 
@@ -575,7 +609,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$filter=id=1;DROP TABLE users--
 ```
 
 **Defense Layers:**
-1. **ModSecurity:** ⚠️ 942290 disabled (would detect this)
+1. **ModSecurity:** 942290 is tuned only on recognized OData routes; other CRS rules remain active
 2. **Parser:** ✅ `odata-v4-parser` throws syntax error
 3. **Application:** ✅ Never reaches database
 
@@ -591,7 +625,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$filter=password eq 'admin'
 ```
 
 **Defense Layers:**
-1. **ModSecurity:** ⚠️ 942290 disabled (would not detect anyway)
+1. **ModSecurity:** 942290 is tuned only on recognized OData routes; other CRS rules remain active
 2. **Whitelist:** ✅ `odataToColumnMap` doesn't contain 'password'
 3. **Application:** ✅ Throws `unsupportedODataField`
 
@@ -607,7 +641,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$filter=eval('malicious code')
 ```
 
 **Defense Layers:**
-1. **ModSecurity:** ⚠️ 942290 disabled (would not detect anyway)
+1. **ModSecurity:** 942290 is tuned only on recognized OData routes; other CRS rules remain active
 2. **Parser:** ✅ `odata-v4-parser` throws syntax error
 3. **Function Check:** ✅ `extractFunctions` doesn't include 'eval'
 4. **Application:** ✅ Throws `unsupportedODataExpression`
@@ -624,7 +658,7 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$filter=id=1 UNION SELECT passwor
 ```
 
 **Defense Layers:**
-1. **ModSecurity:** ⚠️ 942290 disabled (would detect this)
+1. **ModSecurity:** 942290 is tuned only on recognized OData routes; other CRS rules remain active
 2. **Parser:** ✅ `odata-v4-parser` doesn't support UNION
 3. **Slonik:** ✅ Parameterized anyway (wouldn't work)
 
@@ -636,13 +670,15 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$filter=id=1 UNION SELECT passwor
 
 | Attack | Without ModSecurity | With ModSecurity (Current) | With ModSecurity (Enhanced) |
 |--------|-------------------|----------------------------|----------------------------|
-| SQL injection via $filter | ✅ Blocked by app | ⚠️ Excluded | ✅ Blocked by app |
-| Field injection | ✅ Blocked by app | ⚠️ Excluded | ✅ Blocked by app |
-| Function injection | ✅ Blocked by app | ⚠️ Excluded | ✅ Blocked by app |
+| SQL injection via $filter | ✅ App validation | ⚠️ Scoped WAF tuning plus app validation | ✅ App validation |
+| Field injection | ✅ App validation | ✅ App validation and remaining CRS rules | ✅ App validation |
+| Function injection | ✅ App validation | ✅ App validation and remaining CRS rules | ✅ App validation |
 | DoS via large query | ❌ Not protected | ⚠️ Excluded | ✅ Can add rules |
 | Invalid syntax | ✅ Blocked by app | ⚠️ Excluded | ✅ Can add rules |
 
-**Conclusion:** ModSecurity adds little value for SQL injection protection because application-layer protections are already strong. However, ModSecurity can add **DoS protection** and **parameter validation**.
+**Conclusion:** ModSecurity provides protocol and attack-pattern inspection in
+addition to application-layer parsing and parameterization. The scoped OData
+tuning accommodates known syntax while retaining the remaining CRS controls.
 
 ---
 
@@ -666,8 +702,8 @@ GET /v1/projects/1/forms/basic.svc/Submissions?$filter=id=1 UNION SELECT passwor
 
 | Action | Why Not |
 |--------|---------|
-| Re-enable 942290 | Would block ALL legitimate OData queries |
-| Re-enable 920100 | May block legitimate long queries |
+| Apply 942290 to OData argument names | Blocks legitimate `$`-prefixed OData queries |
+| Disable 920100 | Unnecessary; valid raw and encoded OData requests pass with it active |
 | Remove field whitelisting | Would weaken security |
 | Remove AST parsing | Would weaken security |
 
