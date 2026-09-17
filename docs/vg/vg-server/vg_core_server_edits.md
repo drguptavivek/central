@@ -1,6 +1,6 @@
 # VG core server edits
 
-Current comparison baseline: upstream `central-backend` tag `v2026.2.2`.
+Current comparison baseline: upstream `central-backend` tag `v2026.3.0`.
 
 This is the authoritative inventory of edits to upstream-existing server files. VG-owned modules and migrations are listed separately. An upstream merge is not complete until this inventory agrees with the tag-relative diff.
 
@@ -107,7 +107,7 @@ Change: the normal integration target loads `test/vg/mocha-expected-failures.js`
 
 Reason: the hook supplies standard assertion extensions, a test-process-only legacy fixture adapter, and exact-title/exact-message xfail handling for the eight upstream scenarios that intentionally assert the removed permanent-token contract.
 
-Risk/merge note: this is not a blanket skip. Unknown failures and unexpected passes fail the run. Upstream test bodies remain byte-identical to `v2026.2.2`.
+Risk/merge note: this is not a blanket skip. Unknown failures and unexpected passes fail the run. Upstream test bodies remain byte-identical to `v2026.3.0`.
 
 ## VG-owned files, not upstream core edits
 
@@ -125,9 +125,47 @@ Namespaced domain/query/resource modules, `vg-password.js`, `vg-submission-expor
   byte-identical to upstream. VG behavior is kept in namespaced modules and SQL
   phase files.
 
+## Exact upstream-file inventory
+
+The following upstream-existing files differ from `v2026.3.0`. This is the mechanical upgrade checklist; every path must remain covered by the functional sections in this document.
+
+```text
+.github/workflows/oidc-integration.yml
+.github/workflows/s3-e2e.yml
+Makefile
+README.md
+config/s3-dev.json
+docs/database.md
+lib/bin/s3-create-bucket.js
+lib/http/endpoint.js
+lib/http/service.js
+lib/model/container.js
+lib/model/migrations/20260115-01-submission-event-stamping-unshared-events-01.up.sql
+lib/model/migrations/20260115-01-submission-event-stamping-unshared-events-02.up.sql
+lib/model/query/audits.js
+lib/model/query/field-keys.js
+lib/model/query/sessions.js
+lib/resources/app-users.js
+lib/resources/odata.js
+lib/resources/projects.js
+lib/resources/sessions.js
+lib/resources/submissions.js
+lib/resources/users.js
+lib/util/problem.js
+test/bin/docker-postgres.sh
+test/e2e/s3/run-tests.sh
+test/e2e/s3/test.js
+```
+
+The OIDC workflow extends the timeout so always-run PostgreSQL diagnostics can finish. The S3 workflow, `config/s3-dev.json`, `lib/bin/s3-create-bucket.js`, and S3 test files replace the abandoned MinIO test service with digest-pinned Garage while retaining the S3-compatible Node client. `test/bin/docker-postgres.sh` polls readiness for up to 60 seconds instead of assuming a two-second cold start. README and database docs describe the fork contract.
+
+## Naming exceptions
+
+Runtime modules, new role/auth migrations, and their tests use `vg-` or `vg_`. `lib/model/migrations/20260115-01-submission-event-stamping-unshared-events-03.up.sql` is an unprefixed historical migration phase tied to upstream's numbered migration. It may already be recorded in deployed migration histories, so it is frozen as a compatibility exception; future fork migrations must use the VG prefix. `test/e2e/s3/garage.toml` follows the emulator product name, and the upstream-migration regression spec follows the migration name.
+
 ## Validation
 
 - Database migration suite: 13 passing, zero failing, including duplicate-event renumbering and append-only `NULL` repair.
 - Server unit suite: 1,347 passing, one upstream pending, zero failing.
 - Server lint: pass on 2026-09-02.
-- Full integration and focused security counts are recorded in root `GATES.md` after the final clean run.
+- Record full integration and focused security counts in the release changelog and CI run; `GATES.md` is not tracked.

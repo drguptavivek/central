@@ -1,6 +1,6 @@
 ARG NGINX_BASE_IMAGE=ghcr.io/drguptavivek/nginx-waf:v1.0.0
 
-FROM node:24.16.0-slim AS intermediate
+FROM node:24.20.0-slim AS intermediate
 
 ARG FRONTEND_BUILD_MODE
 ARG FRONTEND_VERSION

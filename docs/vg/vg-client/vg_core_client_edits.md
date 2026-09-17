@@ -1,6 +1,6 @@
 # VG core client edits
 
-Current comparison baseline: upstream `central-frontend` tag `v2026.2.4`.
+Current comparison baseline: upstream `central-frontend` tag `v2026.3.0`.
 
 This is the authoritative inventory of edits to upstream-existing client files. VG-owned `vg-*` files are listed separately. An upstream merge is not complete until this inventory agrees with the tag-relative diff.
 
@@ -19,7 +19,7 @@ Change: register the VG App User Settings, Telemetry, Login History, System Sett
 
 Reason: these are upstream registries and tab containers. A new VG component cannot become routable without a small registration seam here.
 
-Risk/merge note: route names, loader names, permission guards, and visible tabs must remain synchronized. Preserve every upstream route from `v2026.2.4`; layer only the VG entries.
+Risk/merge note: route names, loader names, permission guards, and visible tabs must remain synchronized. Preserve every upstream route from `v2026.3.0`; layer only the VG entries.
 
 ### Secure App User and Data Manager presentation
 
@@ -104,18 +104,63 @@ Change: model `active` in App User fixtures, seed Data Manager and the narrow VG
 
 Reason: exercise the changed secure contract without rewriting upstream scenarios. Expected failures are exact-title and exact-message matched and fail on unexpected pass.
 
-Risk/merge note: upstream test bodies must remain byte-identical to `v2026.2.4`. Only shared fixture/bootstrap adapters and VG-owned tests may differ.
+Risk/merge note: upstream test bodies must remain byte-identical to `v2026.3.0`. Only shared fixture/bootstrap adapters and VG-owned tests may differ.
 
 ## VG-owned files, not upstream core edits
 
-The `apps/central/src/components/**/vg-*.vue`, `apps/central/src/util/vg-*.js`, `_vg_colors.scss`, VG tests, expected-failure helper, `Dockerfile.dev`, and `start-dev.sh` are fork-owned modules. Docker startup invokes Vite directly; the root upstream `package.json` dev script is unchanged.
+The `apps/central/src/components/**/vg-*.vue`, `apps/central/src/util/vg-*.js`, `_vg_colors.scss`, VG tests, expected-failure helper, `Dockerfile.dev`, `start-dev.sh`, and the `custom-properties/vg-*.vue` components are fork-owned modules. Docker startup invokes Vite directly; the root upstream `package.json` dev script is unchanged.
 
 ## Removed historical core edits
 
-The final `v2026.2.4` comparison contains no VG changes to `toast.vue`, `dataset/show.vue`, Form Attachment components, `form/head.vue`, `home/summary.vue`, `util/i18n.js`, `util/csv.js`, the root `package.json`, or `packages/xpath/vite.config.ts`. Earlier `$tc` modernization, whitespace-only edits, and macOS timezone changes were removed as unrelated to VG behavior.
+The final `v2026.3.0` comparison contains no VG changes to `toast.vue`, `dataset/show.vue`, Form Attachment components, `form/head.vue`, `home/summary.vue`, `util/i18n.js`, `util/csv.js`, the root `package.json`, or `packages/xpath/vite.config.ts`. Earlier `$tc` modernization, whitespace-only edits, and macOS timezone changes were removed as unrelated to VG behavior.
+
+## Exact upstream-file inventory
+
+The following upstream-existing files differ from `v2026.3.0`. This list is the mechanical review checklist for every upgrade; no upstream edit may exist outside it without updating this ledger.
+
+```text
+.github/actions/restore-node/action.yml
+.github/workflows/tests.yml
+.nginx/.gitkeep (deleted; obsolete placeholder)
+README.md
+apps/central/docs/CONTRIBUTING.md
+apps/central/karma.conf.js
+apps/central/src/assets/scss/_variables.scss
+apps/central/src/components/account/login.vue
+apps/central/src/components/navbar.vue
+apps/central/src/components/project/form-access.vue
+apps/central/src/components/project/show.vue
+apps/central/src/components/project/user/list.vue
+apps/central/src/components/system/home.vue
+apps/central/src/locales/en.json5
+apps/central/src/request-data/project.js
+apps/central/src/request-data/resources.js
+apps/central/src/routes.js
+apps/central/src/util/load-async.js
+apps/central/src/util/request.js
+apps/central/src/util/session.js
+apps/central/test/components/field-key/list.spec.js
+apps/central/test/components/field-key/new.spec.js
+apps/central/test/components/navbar.spec.js
+apps/central/test/components/project/show.spec.js
+apps/central/test/data/field-keys.js
+apps/central/test/data/seed.js
+apps/central/test/index.js
+apps/central/test/util/http/data.js
+apps/central/transifex/strings_en.json
+apps/forms/test/utils/api.spec.ts
+bin/check-bundle-size.js
+e2e-tests/run-tests.sh
+vite.config.js
+packages/xforms-engine/src/instance/attachments/buildAttributes.ts (deleted unused duplicate; active imports use instance/buildAttributes.ts)
+```
+
+`restore-node/action.yml` corrects the upstream cache glob typo (`package/*` to `packages/*`). The field-key/navbar/project tests and Forms API test adapt upstream assertions to the VG contract or carry upstream fixes. README and CONTRIBUTING describe the fork development contract. Each remaining path is covered by the functional groups above.
+
+Fork-owned additions use `vg-`/`vg_` for runtime components and helpers. Generic build files and exact-signature test adapters retain conventional names. The retained Custom Properties views are fork-owned because upstream v2026.3.0 removed them; they are therefore named `vg-list.vue` and `vg-new.vue`.
 
 ## Validation
 
-- Full monorepo lint, including Transifex and formatting: pass on 2026-09-02.
-- Production web build: pass on 2026-09-02.
-- Full Central browser suite must use Playwright's bundled Chromium, not system Google Chrome; the final count is recorded in root `GATES.md`.
+- Run full monorepo lint, including Transifex and formatting, for every release.
+- Run the production web build, typecheck, and focused Vue tests for every release.
+- Full Central browser suite must use Playwright's bundled Chromium, not system Google Chrome; record the final count in the release changelog and CI run.
