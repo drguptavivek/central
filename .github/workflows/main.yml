@@ -106,13 +106,16 @@ jobs:
     - run: ./files/ci/extract-frontend-version.sh
     - run: FRONTEND_BUILD_MODE=fetch ./test/test-images.sh
 
-    # Check out the current frontend version referenced by docker-compose, as it should build OK.
+    # Upstream fetches the referenced frontend here. The VG fork already has
+    # its pinned frontend submodule, which is the source build we need to test.
     - run: |
-           git clone \
-               --depth 1 \
-               --branch "$FRONTEND_VERSION" \
-               https://github.com/getodk/central-frontend.git \
-               client
+           if [[ ! -f client/package.json ]]; then
+             git clone \
+                 --depth 1 \
+                 --branch "$FRONTEND_VERSION" \
+                 https://github.com/getodk/central-frontend.git \
+                 client
+           fi
     - run: FRONTEND_BUILD_MODE=source ./test/test-images.sh
 
     - if: always()
