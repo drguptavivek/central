@@ -58,9 +58,10 @@ EOF
   log "$service: config looks OK."
 }
 
-# Start only the services whose configuration is linted (plus their declared
-# dependencies). Other test fixtures may use intentionally different templates.
-docker_compose up --detach --wait nginx-ssl-selfsign nginx-ssl-upstream
+# setup-tests.sh starts the complete fixture before this script runs. Do not
+# call `compose up` here: preceding tests temporarily change Compose environment
+# values, which can make Compose recreate healthy containers and regenerate
+# certificates immediately before linting.
 lint_service nginx-ssl-selfsign
 lint_service nginx-ssl-upstream
 
