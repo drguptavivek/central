@@ -5,8 +5,21 @@ shopt -s inherit_errexit
 log() { echo >&2 "[$(basename "$0")] $*"; }
 
 expectedShebang=$'#!/bin/bash -eu\nset -o pipefail\nshopt -s inherit_errexit\n'
+expectedPosixShebang=$'#!/bin/sh\nset -eu\n'
 
-scriptFiles="$(cat <(git grep -El '^#!.*sh\b') <(git ls-files | grep -E '.sh$') | sort -u)"
+scriptFiles="$(
+  while IFS= read -r -d '' entry; do
+    mode="${entry%% *}"
+    [[ "$mode" = 100755 ]] || continue
+    file="${entry#*$'\t'}"
+    IFS= read -r firstLine < "$file" || true
+    if [[ "$firstLine" =~ ^#!.*sh([[:space:]]|$) ]]; then
+      printf '%s\n' "$file"
+    fi
+  done < <(git ls-files --stage -z)
+  git ls-files '*.sh'
+)"
+scriptFiles="$(printf '%s\n' "$scriptFiles" | sort -u)"
 
 for script in $scriptFiles; do
   log "Checking $script ..."
@@ -39,16 +52,32 @@ for script in $scriptFiles; do
   log "    Passed OK."
 
   log "  Checking shebang..."
-  shebang="$(head -n3 "$script")"
-  if ! diff <(echo "$shebang") <(printf '%s' "$expectedShebang"); then
+  case "$(head -n1 "$script")" in
+    '#!/bin/bash -eu')
+      shebangLines=3
+      expectedScriptShebang="$expectedShebang"
+      ;;
+    '#!/bin/sh')
+      shebangLines=2
+      expectedScriptShebang="$expectedPosixShebang"
+      ;;
+    *)
+      shebangLines=3
+      expectedScriptShebang="$expectedShebang"
+      ;;
+  esac
+  shebang="$(head -n"$shebangLines" "$script")"
+  if ! diff <(echo "$shebang") <(printf '%s' "$expectedScriptShebang"); then
     log "    !!!"
     log "    !!! Missing or unexpected shebang."
     log "    !!!"
     log "    !!! To make reasoning about script behaviour easier, please"
-    log "    !!! use the standard shebang and shell config lines:"
+    log "    !!! use one of the standard shebang and shell config blocks:"
     log "    !!!"
     echo
     printf '%s' "$expectedShebang"
+    echo
+    printf '%s' "$expectedPosixShebang"
     echo
     exit 1
   fi
