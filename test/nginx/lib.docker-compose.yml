@@ -40,7 +40,10 @@ services:
       interval: 1s
       timeout: 1s
       retries: 60
-      start_period: 0s
+      # Certificate/DH initialization can exceed one minute on a cold or
+      # entropy-starved CI runner. Do not consume health retries while the
+      # entrypoint is still creating those assets.
+      start_period: 90s
     restart: always
     logging:
       driver: local

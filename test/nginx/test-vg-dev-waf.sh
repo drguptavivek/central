@@ -9,7 +9,8 @@ baseUrl="https://${domain}:11001"
 log 'Waiting for the development nginx fixture...'
 attempt=0
 status=''
-while [ "$attempt" -lt 60 ]; do
+# Match the fixture's 90-second startup grace plus 60 health retries.
+while [ "$attempt" -lt 600 ]; do
   status="$(curl --insecure --silent --output /dev/null \
     --resolve "${domain}:11001:127.0.0.1" --write-out '%{http_code}' \
     "${baseUrl}/client-config.json" || true)"
