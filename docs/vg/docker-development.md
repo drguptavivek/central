@@ -85,6 +85,11 @@ We use a "Dev-Prod Parity" architecture where Nginx proxies to a Dockerized clie
 
 ### Architecture
 - **Nginx**: Mounts `files/nginx/odk.conf.dev.template` which proxies `/` to `http://client:8989`.
+- **Development WAF boundary**: The Vite frontend proxy disables ModSecurity
+  because Vite virtual modules use `/@id/` paths that CRS rule 930130 blocks as
+  restricted-file access. API requests under `/v1/` still use the separate
+  WAF-enabled backend location. The nginx test suite verifies both sides of
+  this boundary using the same virtual-module signature.
 - **Client Container**: Runs `start-dev.sh`, installs npm dependencies at startup, then starts Vite directly on internal port `8989` (no inner nginx since v2026.2.4; the outer Central nginx owns routing).
 - **HMR**: Upgraded via Nginx to WSS on port 443.
 - **Service Container**: Runs `files/service/scripts/start-odk-dev.sh`, which renders config, runs migrations, then starts the backend under `node --watch`.

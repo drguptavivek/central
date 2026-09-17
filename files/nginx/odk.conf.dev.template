@@ -132,6 +132,12 @@ server {
 
   # --- DEV PROXY TO VITE CLIENT ---
   location / {
+    # Vite serves internal modules under paths such as /@id/__x00__.... CRS
+    # rule 930130 treats the /@id/ namespace as restricted-file access. This
+    # location exists only in the development template; API traffic continues
+    # through the WAF-enabled /v\d location above.
+    modsecurity off;
+
     proxy_pass http://client:8989;
     proxy_http_version 1.1;
     proxy_set_header Host $host;

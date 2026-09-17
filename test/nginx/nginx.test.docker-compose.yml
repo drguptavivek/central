@@ -1,4 +1,9 @@
 services:
+  client:
+    build:
+      dockerfile: mock-http-service.dockerfile
+    environment:
+      - PORT=8989
   enketo:
     build:
       dockerfile: mock-http-service.dockerfile
@@ -59,3 +64,20 @@ services:
       - ./src/mocha/setup-odk/certs/nginx.pem:/etc/dh/nginx.pem:ro
       - ./src/mocha/setup-odk/certs/privkey.pem:/etc/customssl/live/local/privkey.pem:ro
       - ./src/mocha/setup-odk/certs/fullchain.pem:/etc/customssl/live/local/fullchain.pem:ro
+  nginx-vg-dev-waf:
+    extends:
+      file: lib.docker-compose.yml
+      service: nginx
+    depends_on:
+      - client
+      - service
+      - enketo
+      - sentry-mock
+    environment:
+      - MODSEC_ENGINE_MODE=On
+      - SSL_TYPE=selfsign
+    ports:
+      - "127.0.0.1:11001:443"
+      - "[::1]:11001:443"
+    volumes:
+      - ../../files/nginx/odk.conf.dev.template:/etc/nginx/templates/odk.conf.template:ro
